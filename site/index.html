@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Why Is My Bus Late? — TTC delay analysis</title>
+<meta name="description" content="An analysis of TTC bus delays measured as the
+waiting time riders actually experience, not how late the vehicles were.">
+<meta name="color-scheme" content="light dark">
+<style>
+/* ===========================================================================
+   Transit editorial.
+
+   Three typefaces doing three different jobs, which is what keeps this from
+   looking like a default dashboard:
+
+     serif      prose and headlines - editorial, meant to be read
+     condensed  labels, kickers, nav, table headers - transit signage
+     monospace  every number, always tabular - timetable
+
+   Layout is ruled, not boxed: 2px ink rules open each block instead of rounded
+   cards on a tinted ground. Colour is ink-on-paper with a single signal red
+   used only for emphasis; the chart series palette is separate and validated
+   for colour-vision deficiency against both surfaces below.
+   =========================================================================== */
+
+:root{
+  --paper:#ffffff;
+  --band:#f2efe7;
+  --ink:#141412;
+  --ink-2:#55534b;
+  --ink-3:#8b887e;
+  --hair:rgba(20,20,18,.15);
+  --rule:#141412;
+  --signal:#c8241c;
+  --masthead:#141412;
+  --masthead-ink:#f5f2ea;
+
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300;
+  --good:#0ca30c; --warn:#b07800; --crit:#c8241c;
+
+  --f-serif:Georgia,"Iowan Old Style","Palatino Linotype",Palatino,
+            "Times New Roman",serif;
+  --f-cond:"Arial Narrow","Helvetica Neue Condensed",
+           "Roboto Condensed",Helvetica,Arial,sans-serif;
+  --f-sans:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+  --f-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:where(:not([data-theme="light"])){
+    --paper:#101010;
+    --band:#1a1a18;
+    --ink:#f2efe7;
+    --ink-2:#b5b2a8;
+    --ink-3:#7c7a71;
+    --hair:rgba(242,239,231,.18);
+    --rule:#f2efe7;
+    --signal:#ff5b45;
+    --masthead:#000000;
+    --masthead-ink:#f5f2ea;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --s5:#d55181; --s6:#008300;
+    --good:#0ca30c; --warn:#c98500; --crit:#ff5b45;
+    color-scheme:dark;
+  }
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:16px/1.65 var(--f-serif);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:underline;text-decoration-color:var(--signal);
+  text-underline-offset:3px;text-decoration-thickness:1.5px}
+a:hover{color:var(--signal)}
+
+.wrap{max-width:1080px;margin:0 auto;padding:0 26px 96px}
+
+/* ---- masthead ---------------------------------------------------------- */
+.masthead{background:var(--masthead);color:var(--masthead-ink);
+  border-bottom:3px solid var(--signal)}
+.masthead .inner{max-width:1080px;margin:0 auto;padding:0 26px;
+  display:flex;align-items:stretch;flex-wrap:wrap;gap:0;min-height:56px}
+.brand{font-family:var(--f-cond);font-weight:700;text-transform:uppercase;
+  letter-spacing:.14em;font-size:15px;display:flex;align-items:center;
+  padding-right:26px;margin-right:auto;white-space:nowrap}
+.brand em{font-style:normal;color:var(--signal)}
+.masthead nav{display:flex;align-items:stretch}
+.masthead nav a{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.12em;font-size:12.5px;text-decoration:none;
+  display:flex;align-items:center;padding:0 15px;color:var(--masthead-ink);
+  opacity:.72;border-bottom:3px solid transparent;margin-bottom:-3px}
+.masthead nav a:hover{opacity:1;color:var(--masthead-ink)}
+.masthead nav a.on{opacity:1;border-bottom-color:var(--signal);font-weight:700}
+@media(max-width:620px){
+  .masthead .inner{padding:0 16px}
+  .brand{width:100%;padding:12px 0 6px}
+  .masthead nav{flex-wrap:wrap;padding-bottom:2px}
+  .masthead nav a{padding:8px 13px 8px 0}
+}
+
+/* ---- notice ------------------------------------------------------------ */
+.banner{border-left:4px solid var(--signal);background:var(--band);
+  padding:14px 18px;margin:26px 0 0;font-size:14.5px;line-height:1.55}
+.banner b{font-weight:700}
+
+/* ---- page head --------------------------------------------------------- */
+header.page{padding:44px 0 30px;border-bottom:2px solid var(--rule);
+  margin-bottom:34px}
+.kicker{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.18em;font-size:12px;color:var(--signal);font-weight:700;
+  margin:0 0 14px}
+h1{font-family:var(--f-serif);font-size:clamp(34px,5.2vw,52px);font-weight:400;
+  line-height:1.06;letter-spacing:-.02em;margin:0 0 18px;max-width:19ch}
+.lede{font-size:18.5px;line-height:1.6;color:var(--ink-2);max-width:60ch;
+  margin:0}
+.meta{font-family:var(--f-mono);font-size:12px;color:var(--ink-3);
+  margin-top:24px;line-height:1.95;letter-spacing:-.01em;max-width:86ch;
+  border-top:1px solid var(--hair);padding-top:16px}
+
+/* ---- blocks ------------------------------------------------------------ */
+.card{border-top:2px solid var(--rule);padding:22px 0 30px;margin:0 0 6px}
+/* the page header already closes with a rule; don't double it */
+header.page + .card{border-top:none;padding-top:2px}
+header.page + .grid2 > .card:first-child{border-top:none;padding-top:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 44px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr;gap:0}}
+
+h2{font-family:var(--f-cond);text-transform:uppercase;letter-spacing:.14em;
+  font-size:13.5px;font-weight:700;margin:0 0 12px;color:var(--ink)}
+h3{font-family:var(--f-cond);text-transform:uppercase;letter-spacing:.12em;
+  font-size:12px;font-weight:700;margin:30px 0 10px;color:var(--ink-3)}
+.note{font-size:15.5px;line-height:1.62;color:var(--ink-2);margin:0 0 22px;
+  max-width:66ch}
+.note b{color:var(--ink);font-weight:700}
+
+/* ---- departure board (hero stats) -------------------------------------- */
+.board{background:var(--masthead);color:var(--masthead-ink);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  margin:0 0 34px;border-top:3px solid var(--signal)}
+.board .tile{padding:19px 17px 21px;border-right:1px solid rgba(245,242,234,.16);
+  border-bottom:1px solid rgba(245,242,234,.16)}
+.board .label{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.13em;font-size:10.5px;opacity:.66;margin-bottom:12px;
+  line-height:1.4;min-height:4.2em}
+.board .value{font-family:var(--f-mono);font-size:31px;font-weight:600;
+  letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums;
+  color:#fff}
+.board .foot{font-size:12.5px;opacity:.6;margin-top:11px;line-height:1.45;
+  font-family:var(--f-sans)}
+
+/* ---- plain stat row ---------------------------------------------------- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  border-top:1px solid var(--hair);margin:0 0 28px}
+.tiles .tile{padding:16px 18px 18px;border-bottom:1px solid var(--hair);
+  border-right:1px solid var(--hair)}
+.tiles .label{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.13em;font-size:10.5px;color:var(--ink-3);margin-bottom:10px;
+  line-height:1.4;min-height:4.2em}
+.tiles .value{font-family:var(--f-mono);font-size:24px;font-weight:600;
+  letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.tiles .foot{font-family:var(--f-sans);font-size:12px;color:var(--ink-3);
+  margin-top:9px;line-height:1.45}
+
+/* ---- charts ------------------------------------------------------------ */
+svg{display:block;width:100%;height:auto;overflow:visible}
+.gl{stroke:var(--hair);stroke-width:1}
+.ax{stroke:var(--ink-3);stroke-width:1}
+.tk{fill:var(--ink-3);font-size:11px;font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.dl{fill:var(--ink);font-size:11.5px;font-weight:600;font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.al{fill:var(--ink-2);font-size:12.5px;font-family:var(--f-sans)}
+.bar{transition:opacity .12s}
+.bar:hover{opacity:.7}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin:0 0 16px;
+  font-family:var(--f-sans);font-size:12px;color:var(--ink-2)}
+.legend span{display:flex;align-items:center;gap:8px}
+.sw{width:13px;height:13px;flex:none}
+
+/* ---- tables ------------------------------------------------------------ */
+table{width:100%;border-collapse:collapse;font-family:var(--f-sans);
+  font-size:13px}
+th{text-align:left;font-family:var(--f-cond);font-weight:700;color:var(--ink);
+  font-size:11px;text-transform:uppercase;letter-spacing:.11em;
+  padding:9px 9px;border-bottom:2px solid var(--rule);white-space:nowrap;
+  background:var(--paper)}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--signal)}
+th .arrow{opacity:.3;margin-left:3px;font-size:9px}
+th.active{color:var(--signal)}
+th.active .arrow{opacity:1}
+td{padding:8px 9px;border-bottom:1px solid var(--hair);vertical-align:baseline}
+td.n{text-align:right;font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+td.nw{white-space:nowrap}
+tbody tr:hover{background:var(--band)}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* route number blade, after the signage on a bus stop pole */
+.blade{display:inline-block;background:var(--rule);color:var(--paper);
+  font-family:var(--f-cond);font-weight:700;letter-spacing:.06em;
+  font-size:11.5px;padding:2px 6px;margin-right:8px;min-width:30px;
+  text-align:center;vertical-align:1px}
+
+.pill{display:inline-block;padding:2px 8px;font-family:var(--f-cond);
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  border:1px solid;white-space:nowrap}
+.pill.ok{color:var(--good);border-color:var(--good)}
+.pill.warn{color:var(--warn);border-color:var(--warn)}
+.pill.bad{color:var(--crit);border-color:var(--crit)}
+.pill.mute{color:var(--ink-3);border-color:var(--hair)}
+
+/* ---- controls ---------------------------------------------------------- */
+input[type=search]{width:100%;max-width:300px;padding:9px 12px;font-size:14px;
+  border:1px solid var(--ink-3);background:var(--paper);color:var(--ink);
+  font-family:var(--f-sans);border-radius:0}
+input[type=search]:focus{outline:2px solid var(--signal);outline-offset:1px;
+  border-color:var(--signal)}
+.controls{display:flex;gap:16px;flex-wrap:wrap;align-items:center;
+  margin-bottom:16px}
+.count{font-family:var(--f-mono);font-size:12px;color:var(--ink-3)}
+
+details{margin-top:20px;border-top:1px solid var(--hair);padding-top:6px}
+summary{cursor:pointer;font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.12em;font-size:11.5px;color:var(--ink-3);padding:8px 0;
+  user-select:none;font-weight:700}
+summary:hover{color:var(--signal)}
+details table{margin-top:12px}
+
+/* ---- pull-out finding -------------------------------------------------- */
+.finding{border-left:4px solid var(--signal);padding:4px 0 4px 20px;
+  margin:26px 0}
+.finding h3{font-family:var(--f-serif);text-transform:none;letter-spacing:-.01em;
+  font-size:20px;font-weight:400;line-height:1.25;color:var(--ink);
+  margin:0 0 10px}
+.finding p{margin:0;color:var(--ink-2);font-size:15.5px;line-height:1.62;
+  max-width:64ch}
+.finding em{font-style:italic}
+
+ul.note{padding-left:20px}
+ul.note li{margin-bottom:9px}
+
+footer{border-top:2px solid var(--rule);margin-top:56px;padding-top:22px;
+  font-family:var(--f-sans);font-size:12.5px;color:var(--ink-3);
+  line-height:1.75;max-width:78ch}
+
+code{font-family:var(--f-mono);font-size:.88em;background:var(--band);
+  padding:2px 5px;letter-spacing:-.02em}
+.board code,.masthead code{background:rgba(255,255,255,.14)}
+
+/* ---- heatmap ramp ------------------------------------------------------ */
+.hm-na{fill:var(--hair)}
+.hm-0{fill:#eff5fd}
+.hm-1{fill:#d8e8fb}
+.hm-2{fill:#c1dbf8}
+.hm-3{fill:#a9cdf5}
+.hm-4{fill:#91bff1}
+.hm-5{fill:#78b0ed}
+.hm-6{fill:#5fa1e8}
+.hm-7{fill:#4691e2}
+.hm-8{fill:#2f80d9}
+.hm-9{fill:#1f6ec2}
+.hm-10{fill:#155aa4}
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){}
+  :root:where(:not([data-theme="light"])) .hm-0{fill:#16202b} :root:where(:not([data-theme="light"])) .hm-1{fill:#1a2a3b} :root:where(:not([data-theme="light"])) .hm-2{fill:#1d354c} :root:where(:not([data-theme="light"])) .hm-3{fill:#20405e} :root:where(:not([data-theme="light"])) .hm-4{fill:#224b70} :root:where(:not([data-theme="light"])) .hm-5{fill:#245683} :root:where(:not([data-theme="light"])) .hm-6{fill:#256296} :root:where(:not([data-theme="light"])) .hm-7{fill:#256ea9} :root:where(:not([data-theme="light"])) .hm-8{fill:#2d7bbb} :root:where(:not([data-theme="light"])) .hm-9{fill:#4189cc} :root:where(:not([data-theme="light"])) .hm-10{fill:#5d98d9}
+}
+</style></head><body>
+<div class="masthead"><div class="inner"><span class="brand"><span>Why Is My Bus <em>Late</em>?</span></span><nav><a href="index.html" class="on">Overview</a><a href="routes.html" class="">Routes</a><a href="causes.html" class="">Causes</a><a href="when.html" class="">When</a><a href="methodology.html" class="">Method</a></nav></div></div>
+<div class="wrap">
+<div class="banner"><b>Placeholder build.</b> This page was generated without the published TTC files, so the figures below stand in for the real ones and should <b>not</b> be read as findings about the TTC.</div>
+<header class="page">
+<p class="kicker">Toronto &middot; Surface transit &middot; Rider impact analysis</p>
+<h1>The bus isn’t late. You are waiting.</h1>
+<p class="lede">I spent four years getting around Toronto on the TTC, and the
+part I never got used to was not the delay itself. It was standing at a stop in
+February with no idea whether the bus was two minutes away or twenty. So I went
+looking for an answer in the City’s own data — not how late the buses
+were, but how long people actually stood there waiting, and what would have to
+change to make that number smaller.</p>
+<p class="meta">196,139 delay records &middot; 28 routes &middot; 2023-01-01 to 2026-06-30 &middot; 1,277 days &middot; 109,664 rows came from the pre-2025 file layout and 86,631 from the current one</p></header>
+<div class="board"><div class="tile"><div class="label">Wait added per incident</div><div class="value">7.2 min</div><div class="foot">on top of the normal wait, per affected rider</div></div><div class="tile"><div class="label">Incidents that broke service</div><div class="value">70%</div><div class="foot">137,043 of 196,139 left a real gap</div></div><div class="tile"><div class="label">Average gap in service</div><div class="value">23 min</div><div class="foot">against an average delay of 14 min</div></div><div class="tile"><div class="label">Carried by 10 worst routes</div><div class="value">50%</div><div class="foot">of all rider impact, out of 28 routes</div></div><div class="tile"><div class="label">Addressable share of impact</div><div class="value">40%</div><div class="foot">mechanical and operator causes</div></div><div class="tile"><div class="label">Winter vs the rest of the year</div><div class="value">+47%</div><div class="foot">rider impact per day, December to February</div></div></div>
+<div class="card">
+<h2>The measure that matters is the gap, not the delay</h2>
+<p class="note">The data records two different things, and I think most people reading it pick the wrong one. <b>Min Delay</b> is how late a vehicle was. <b>Min Gap</b> is how long the hole in service lasted. The first is what an operations team is measured on; the second is what you experience on the sidewalk. On this data an average delay of 14 minutes leaves an average gap of 23.</p>
+<div class="finding"><h3>Waiting is worse than lateness, and not by a fixed amount</h3><p>During a gap of <em>G</em> minutes you wait <em>G/2</em> on average instead of the <em>H/2</em> you would have waited on a normal headway <em>H</em>. But a longer gap also catches proportionally more people, because passengers keep arriving the whole time the bus is missing. So the total harm scales with <em>G &times; (G &minus; H) / 2</em> &mdash; roughly the square of the gap. Doubling a gap does not double the damage, it roughly quadruples it. That is why I stopped counting incidents.</p></div>
+</div>
+<div class="card">
+<h2>How concentrated the problem is</h2>
+<p class="note">Cumulative share of total rider impact as routes are added worst first. The steeper the early climb, the shorter the list of routes you would have to fix to move the overall number.</p>
+<svg viewBox="0 0 900 210" role="img"><line class="gl" x1="58" y1="178.0" x2="884" y2="178.0"/><text class="tk" x="50" y="181.5" text-anchor="end">0%</text><line class="gl" x1="58" y1="136.5" x2="884" y2="136.5"/><text class="tk" x="50" y="140.0" text-anchor="end">25%</text><line class="gl" x1="58" y1="95.0" x2="884" y2="95.0"/><text class="tk" x="50" y="98.5" text-anchor="end">50%</text><line class="gl" x1="58" y1="53.5" x2="884" y2="53.5"/><text class="tk" x="50" y="57.0" text-anchor="end">75%</text><line class="gl" x1="58" y1="12.0" x2="884" y2="12.0"/><text class="tk" x="50" y="15.5" text-anchor="end">100%</text><line class="ax" x1="58" y1="178" x2="884" y2="178"/><text class="tk" x="58.0" y="200" text-anchor="middle">3%</text><text class="tk" x="149.8" y="200" text-anchor="middle">14%</text><text class="tk" x="241.6" y="200" text-anchor="middle">25%</text><text class="tk" x="333.3" y="200" text-anchor="middle">35%</text><text class="tk" x="425.1" y="200" text-anchor="middle">46%</text><text class="tk" x="516.9" y="200" text-anchor="middle">57%</text><text class="tk" x="608.7" y="200" text-anchor="middle">67%</text><text class="tk" x="700.4" y="200" text-anchor="middle">78%</text><text class="tk" x="792.2" y="200" text-anchor="middle">89%</text><text class="tk" x="884.0" y="200" text-anchor="middle">100%</text><polyline fill="none" stroke="var(--s1)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="58.0,167.1 88.6,157.6 119.2,148.2 149.8,139.0 180.4,130.8 211.0,122.9 241.6,115.4 272.1,108.2 302.7,101.9 333.3,95.7 363.9,89.5 394.5,83.6 425.1,77.9 455.7,72.2 486.3,66.7 516.9,61.2 547.5,55.6 578.1,50.3 608.7,45.2 639.3,40.1 669.9,35.1 700.4,30.9 731.0,26.9 761.6,23.1 792.2,19.7 822.8,16.7 853.4,14.2 884.0,12.0"/><circle cx="58.0" cy="167.1" r="7" fill="transparent"><title>3%: 7%</title></circle><circle cx="88.6" cy="157.6" r="7" fill="transparent"><title>7%: 12%</title></circle><circle cx="119.2" cy="148.2" r="7" fill="transparent"><title>10%: 18%</title></circle><circle cx="149.8" cy="139.0" r="7" fill="transparent"><title>14%: 24%</title></circle><circle cx="180.4" cy="130.8" r="7" fill="transparent"><title>17%: 28%</title></circle><circle cx="211.0" cy="122.9" r="7" fill="transparent"><title>21%: 33%</title></circle><circle cx="241.6" cy="115.4" r="7" fill="transparent"><title>25%: 38%</title></circle><circle cx="272.1" cy="108.2" r="7" fill="transparent"><title>28%: 42%</title></circle><circle cx="302.7" cy="101.9" r="7" fill="transparent"><title>32%: 46%</title></circle><circle cx="333.3" cy="95.7" r="7" fill="transparent"><title>35%: 50%</title></circle><circle cx="363.9" cy="89.5" r="7" fill="transparent"><title>39%: 53%</title></circle><circle cx="394.5" cy="83.6" r="7" fill="transparent"><title>42%: 57%</title></circle><circle cx="425.1" cy="77.9" r="7" fill="transparent"><title>46%: 60%</title></circle><circle cx="455.7" cy="72.2" r="7" fill="transparent"><title>50%: 64%</title></circle><circle cx="486.3" cy="66.7" r="7" fill="transparent"><title>53%: 67%</title></circle><circle cx="516.9" cy="61.2" r="7" fill="transparent"><title>57%: 70%</title></circle><circle cx="547.5" cy="55.6" r="7" fill="transparent"><title>60%: 74%</title></circle><circle cx="578.1" cy="50.3" r="7" fill="transparent"><title>64%: 77%</title></circle><circle cx="608.7" cy="45.2" r="7" fill="transparent"><title>67%: 80%</title></circle><circle cx="639.3" cy="40.1" r="7" fill="transparent"><title>71%: 83%</title></circle><circle cx="669.9" cy="35.1" r="7" fill="transparent"><title>75%: 86%</title></circle><circle cx="700.4" cy="30.9" r="7" fill="transparent"><title>78%: 89%</title></circle><circle cx="731.0" cy="26.9" r="7" fill="transparent"><title>82%: 91%</title></circle><circle cx="761.6" cy="23.1" r="7" fill="transparent"><title>85%: 93%</title></circle><circle cx="792.2" cy="19.7" r="7" fill="transparent"><title>89%: 95%</title></circle><circle cx="822.8" cy="16.7" r="7" fill="transparent"><title>92%: 97%</title></circle><circle cx="853.4" cy="14.2" r="7" fill="transparent"><title>96%: 99%</title></circle><circle cx="884.0" cy="12.0" r="7" fill="transparent"><title>100%: 100%</title></circle></svg>
+<p class="note" style="margin-top:14px">The worst quarter of routes carry <b>38%</b> of all rider impact; the worst half carry <b>64%</b>. The problem is moderately concentrated — worth prioritising, but there is no handful of routes that explains everything. The single worst route, <span class="blade">84</span>Sheppard West, accounts for 6.6% on its own.</p>
+</div>
+<div class="grid2">
+<div class="card"><h2>Where the waiting comes from</h2><p class="note">Total rider impact by cause category.</p><svg viewBox="0 0 470 246" role="img"><text class="al" x="178" y="21" text-anchor="end">External (weather, traffic, events)</text><rect class="bar" x="190" y="9" width="210.0" height="18" rx="4" fill="var(--s3)"><title>External (weather, traffic, events): 15.1M</title></rect><text class="dl" x="409.0" y="22.5">15.1M</text><text class="al" x="178" y="55" text-anchor="end">Mechanical</text><rect class="bar" x="190" y="43" width="131.8" height="18" rx="4" fill="var(--s2)"><title>Mechanical: 9.4M</title></rect><text class="dl" x="330.8" y="56.5">9.4M</text><text class="al" x="178" y="89" text-anchor="end">Operator &amp; scheduling</text><rect class="bar" x="190" y="77" width="90.4" height="18" rx="4" fill="var(--s1)"><title>Operator &amp; scheduling: 6.5M</title></rect><text class="dl" x="289.4" y="90.5">6.5M</text><text class="al" x="178" y="123" text-anchor="end">Collisions</text><rect class="bar" x="190" y="111" width="70.7" height="18" rx="4" fill="var(--s5)"><title>Collisions: 5.1M</title></rect><text class="dl" x="269.7" y="124.5">5.1M</text><text class="al" x="178" y="157" text-anchor="end">Unclassified</text><rect class="bar" x="190" y="145" width="25.2" height="18" rx="4" fill="var(--ink-3)"><title>Unclassified: 1.8M</title></rect><text class="dl" x="224.2" y="158.5">1.8M</text><text class="al" x="178" y="191" text-anchor="end">Security</text><rect class="bar" x="190" y="179" width="19.4" height="18" rx="4" fill="var(--s6)"><title>Security: 1.4M</title></rect><text class="dl" x="218.4" y="192.5">1.4M</text><text class="al" x="178" y="225" text-anchor="end">Passenger incidents</text><rect class="bar" x="190" y="213" width="15.3" height="18" rx="4" fill="var(--s4)"><title>Passenger incidents: 1.1M</title></rect><text class="dl" x="214.3" y="226.5">1.1M</text></svg></div>
+<div class="card"><h2>The ten worst routes</h2><p class="note">Ranked by rider impact, not incident count.</p><svg viewBox="0 0 470 308" role="img"><text class="al" x="158" y="21" text-anchor="end">84 Sheppard West</text><rect class="bar" x="170" y="9" width="230.0" height="18" rx="4" fill="var(--s1)"><title>84 Sheppard West: 2.6M</title></rect><text class="dl" x="409.0" y="22.5">2.6M</text><text class="al" x="158" y="51" text-anchor="end">36 Finch West</text><rect class="bar" x="170" y="39" width="200.3" height="18" rx="4" fill="var(--s1)"><title>36 Finch West: 2.3M</title></rect><text class="dl" x="379.3" y="52.5">2.3M</text><text class="al" x="158" y="81" text-anchor="end">43 Kennedy</text><rect class="bar" x="170" y="69" width="198.7" height="18" rx="4" fill="var(--s1)"><title>43 Kennedy: 2.3M</title></rect><text class="dl" x="377.7" y="82.5">2.3M</text><text class="al" x="158" y="111" text-anchor="end">53 Steeles East</text><rect class="bar" x="170" y="99" width="195.3" height="18" rx="4" fill="var(--s1)"><title>53 Steeles East: 2.2M</title></rect><text class="dl" x="374.3" y="112.5">2.2M</text><text class="al" x="158" y="141" text-anchor="end">96 Wilson</text><rect class="bar" x="170" y="129" width="172.0" height="18" rx="4" fill="var(--s1)"><title>96 Wilson: 2.0M</title></rect><text class="dl" x="351.0" y="142.5">2.0M</text><text class="al" x="158" y="171" text-anchor="end">25 Don Mills</text><rect class="bar" x="170" y="159" width="167.8" height="18" rx="4" fill="var(--s1)"><title>25 Don Mills: 1.9M</title></rect><text class="dl" x="346.8" y="172.5">1.9M</text><text class="al" x="158" y="201" text-anchor="end">89 Weston</text><rect class="bar" x="170" y="189" width="157.6" height="18" rx="4" fill="var(--s1)"><title>89 Weston: 1.8M</title></rect><text class="dl" x="336.6" y="202.5">1.8M</text><text class="al" x="158" y="231" text-anchor="end">100 Flemingdon Park</text><rect class="bar" x="170" y="219" width="150.9" height="18" rx="4" fill="var(--s1)"><title>100 Flemingdon Park: 1.7M</title></rect><text class="dl" x="329.9" y="232.5">1.7M</text><text class="al" x="158" y="261" text-anchor="end">32 Eglinton West</text><rect class="bar" x="170" y="249" width="134.2" height="18" rx="4" fill="var(--s1)"><title>32 Eglinton West: 1.5M</title></rect><text class="dl" x="313.2" y="262.5">1.5M</text><text class="al" x="158" y="291" text-anchor="end">34 Eglinton East</text><rect class="bar" x="170" y="279" width="131.0" height="18" rx="4" fill="var(--s1)"><title>34 Eglinton East: 1.5M</title></rect><text class="dl" x="310.0" y="292.5">1.5M</text></svg></div>
+</div>
+<div class="card">
+<h2>What I found</h2>
+<div class="finding"><h3>Counting incidents points at different routes than measuring waiting</h3><p>6 of 28 routes move more than five places when I rank by rider impact instead of by how many incidents they log, and the largest single shift is 10 places. A route with many brief incidents can be almost unnoticeable to a rider; a route with fewer, longer gaps is the one people remember. That gap between the two rankings is the whole reason I built the impact measure.</p></div>
+<div class="finding"><h3>External causes the largest share of the waiting</h3><p>Responsibility sits with weather, traffic and events - outside ttc control. It is 23% of logged incidents but 37% of rider impact (+14.4 points), because its incidents run to an average gap of 29 minutes.</p></div>
+<div class="finding"><h3>Most of the waiting comes from causes the TTC does not control</h3><p>Weather, traffic and onboard incidents account for 40% of rider impact, against 40% from mechanical and operator causes. That is an uncomfortable finding for anyone hoping for a simple fix, and it argues for building slack into the schedule rather than trying to eliminate the incidents themselves.</p></div>
+<div class="finding"><h3>Winter costs riders 47% more waiting per day</h3><p>December through February averages 41,391 on the impact index per day against 28,155 across the rest of the year. The cold stop and the late bus turn out to be the same problem, which is roughly what I expected to find and the reason I started here.</p></div>
+<p class="note" style="margin-top:22px">Each of these is broken down further on the <a href="routes.html">routes</a>, <a href="causes.html">causes</a> and <a href="when.html">when</a> pages. The <a href="methodology.html">method</a> page covers how the wait-time measure works, what it assumes, and where I think it is weakest.</p>
+</div>
+<footer>
+<b>Source.</b> City of Toronto Open Data, TTC Bus Delay Data, used under the
+Open Government Licence &ndash; Toronto. Independent analysis; not affiliated
+with or endorsed by the TTC.<br>
+<b>Method.</b> The published files are reconciled into one table and analysed in
+SQL; these pages are generated from the result and rebuild monthly. Last built
+2026-08-23T05:42:21. Figures marked <em>estimated</em> rest on an assumption about
+boarding rates, set out on the <a href="methodology.html">method</a> page.
+</footer>
+</div></body></html>

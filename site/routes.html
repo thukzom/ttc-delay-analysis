@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Routes — Why Is My Bus Late?</title>
+<meta name="description" content="An analysis of TTC bus delays measured as the
+waiting time riders actually experience, not how late the vehicles were.">
+<meta name="color-scheme" content="light dark">
+<style>
+/* ===========================================================================
+   Transit editorial.
+
+   Three typefaces doing three different jobs, which is what keeps this from
+   looking like a default dashboard:
+
+     serif      prose and headlines - editorial, meant to be read
+     condensed  labels, kickers, nav, table headers - transit signage
+     monospace  every number, always tabular - timetable
+
+   Layout is ruled, not boxed: 2px ink rules open each block instead of rounded
+   cards on a tinted ground. Colour is ink-on-paper with a single signal red
+   used only for emphasis; the chart series palette is separate and validated
+   for colour-vision deficiency against both surfaces below.
+   =========================================================================== */
+
+:root{
+  --paper:#ffffff;
+  --band:#f2efe7;
+  --ink:#141412;
+  --ink-2:#55534b;
+  --ink-3:#8b887e;
+  --hair:rgba(20,20,18,.15);
+  --rule:#141412;
+  --signal:#c8241c;
+  --masthead:#141412;
+  --masthead-ink:#f5f2ea;
+
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300;
+  --good:#0ca30c; --warn:#b07800; --crit:#c8241c;
+
+  --f-serif:Georgia,"Iowan Old Style","Palatino Linotype",Palatino,
+            "Times New Roman",serif;
+  --f-cond:"Arial Narrow","Helvetica Neue Condensed",
+           "Roboto Condensed",Helvetica,Arial,sans-serif;
+  --f-sans:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+  --f-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:where(:not([data-theme="light"])){
+    --paper:#101010;
+    --band:#1a1a18;
+    --ink:#f2efe7;
+    --ink-2:#b5b2a8;
+    --ink-3:#7c7a71;
+    --hair:rgba(242,239,231,.18);
+    --rule:#f2efe7;
+    --signal:#ff5b45;
+    --masthead:#000000;
+    --masthead-ink:#f5f2ea;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --s5:#d55181; --s6:#008300;
+    --good:#0ca30c; --warn:#c98500; --crit:#ff5b45;
+    color-scheme:dark;
+  }
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:16px/1.65 var(--f-serif);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:underline;text-decoration-color:var(--signal);
+  text-underline-offset:3px;text-decoration-thickness:1.5px}
+a:hover{color:var(--signal)}
+
+.wrap{max-width:1080px;margin:0 auto;padding:0 26px 96px}
+
+/* ---- masthead ---------------------------------------------------------- */
+.masthead{background:var(--masthead);color:var(--masthead-ink);
+  border-bottom:3px solid var(--signal)}
+.masthead .inner{max-width:1080px;margin:0 auto;padding:0 26px;
+  display:flex;align-items:stretch;flex-wrap:wrap;gap:0;min-height:56px}
+.brand{font-family:var(--f-cond);font-weight:700;text-transform:uppercase;
+  letter-spacing:.14em;font-size:15px;display:flex;align-items:center;
+  padding-right:26px;margin-right:auto;white-space:nowrap}
+.brand em{font-style:normal;color:var(--signal)}
+.masthead nav{display:flex;align-items:stretch}
+.masthead nav a{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.12em;font-size:12.5px;text-decoration:none;
+  display:flex;align-items:center;padding:0 15px;color:var(--masthead-ink);
+  opacity:.72;border-bottom:3px solid transparent;margin-bottom:-3px}
+.masthead nav a:hover{opacity:1;color:var(--masthead-ink)}
+.masthead nav a.on{opacity:1;border-bottom-color:var(--signal);font-weight:700}
+@media(max-width:620px){
+  .masthead .inner{padding:0 16px}
+  .brand{width:100%;padding:12px 0 6px}
+  .masthead nav{flex-wrap:wrap;padding-bottom:2px}
+  .masthead nav a{padding:8px 13px 8px 0}
+}
+
+/* ---- notice ------------------------------------------------------------ */
+.banner{border-left:4px solid var(--signal);background:var(--band);
+  padding:14px 18px;margin:26px 0 0;font-size:14.5px;line-height:1.55}
+.banner b{font-weight:700}
+
+/* ---- page head --------------------------------------------------------- */
+header.page{padding:44px 0 30px;border-bottom:2px solid var(--rule);
+  margin-bottom:34px}
+.kicker{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.18em;font-size:12px;color:var(--signal);font-weight:700;
+  margin:0 0 14px}
+h1{font-family:var(--f-serif);font-size:clamp(34px,5.2vw,52px);font-weight:400;
+  line-height:1.06;letter-spacing:-.02em;margin:0 0 18px;max-width:19ch}
+.lede{font-size:18.5px;line-height:1.6;color:var(--ink-2);max-width:60ch;
+  margin:0}
+.meta{font-family:var(--f-mono);font-size:12px;color:var(--ink-3);
+  margin-top:24px;line-height:1.95;letter-spacing:-.01em;max-width:86ch;
+  border-top:1px solid var(--hair);padding-top:16px}
+
+/* ---- blocks ------------------------------------------------------------ */
+.card{border-top:2px solid var(--rule);padding:22px 0 30px;margin:0 0 6px}
+/* the page header already closes with a rule; don't double it */
+header.page + .card{border-top:none;padding-top:2px}
+header.page + .grid2 > .card:first-child{border-top:none;padding-top:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 44px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr;gap:0}}
+
+h2{font-family:var(--f-cond);text-transform:uppercase;letter-spacing:.14em;
+  font-size:13.5px;font-weight:700;margin:0 0 12px;color:var(--ink)}
+h3{font-family:var(--f-cond);text-transform:uppercase;letter-spacing:.12em;
+  font-size:12px;font-weight:700;margin:30px 0 10px;color:var(--ink-3)}
+.note{font-size:15.5px;line-height:1.62;color:var(--ink-2);margin:0 0 22px;
+  max-width:66ch}
+.note b{color:var(--ink);font-weight:700}
+
+/* ---- departure board (hero stats) -------------------------------------- */
+.board{background:var(--masthead);color:var(--masthead-ink);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  margin:0 0 34px;border-top:3px solid var(--signal)}
+.board .tile{padding:19px 17px 21px;border-right:1px solid rgba(245,242,234,.16);
+  border-bottom:1px solid rgba(245,242,234,.16)}
+.board .label{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.13em;font-size:10.5px;opacity:.66;margin-bottom:12px;
+  line-height:1.4;min-height:4.2em}
+.board .value{font-family:var(--f-mono);font-size:31px;font-weight:600;
+  letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums;
+  color:#fff}
+.board .foot{font-size:12.5px;opacity:.6;margin-top:11px;line-height:1.45;
+  font-family:var(--f-sans)}
+
+/* ---- plain stat row ---------------------------------------------------- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  border-top:1px solid var(--hair);margin:0 0 28px}
+.tiles .tile{padding:16px 18px 18px;border-bottom:1px solid var(--hair);
+  border-right:1px solid var(--hair)}
+.tiles .label{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.13em;font-size:10.5px;color:var(--ink-3);margin-bottom:10px;
+  line-height:1.4;min-height:4.2em}
+.tiles .value{font-family:var(--f-mono);font-size:24px;font-weight:600;
+  letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.tiles .foot{font-family:var(--f-sans);font-size:12px;color:var(--ink-3);
+  margin-top:9px;line-height:1.45}
+
+/* ---- charts ------------------------------------------------------------ */
+svg{display:block;width:100%;height:auto;overflow:visible}
+.gl{stroke:var(--hair);stroke-width:1}
+.ax{stroke:var(--ink-3);stroke-width:1}
+.tk{fill:var(--ink-3);font-size:11px;font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.dl{fill:var(--ink);font-size:11.5px;font-weight:600;font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.al{fill:var(--ink-2);font-size:12.5px;font-family:var(--f-sans)}
+.bar{transition:opacity .12s}
+.bar:hover{opacity:.7}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin:0 0 16px;
+  font-family:var(--f-sans);font-size:12px;color:var(--ink-2)}
+.legend span{display:flex;align-items:center;gap:8px}
+.sw{width:13px;height:13px;flex:none}
+
+/* ---- tables ------------------------------------------------------------ */
+table{width:100%;border-collapse:collapse;font-family:var(--f-sans);
+  font-size:13px}
+th{text-align:left;font-family:var(--f-cond);font-weight:700;color:var(--ink);
+  font-size:11px;text-transform:uppercase;letter-spacing:.11em;
+  padding:9px 9px;border-bottom:2px solid var(--rule);white-space:nowrap;
+  background:var(--paper)}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--signal)}
+th .arrow{opacity:.3;margin-left:3px;font-size:9px}
+th.active{color:var(--signal)}
+th.active .arrow{opacity:1}
+td{padding:8px 9px;border-bottom:1px solid var(--hair);vertical-align:baseline}
+td.n{text-align:right;font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+td.nw{white-space:nowrap}
+tbody tr:hover{background:var(--band)}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* route number blade, after the signage on a bus stop pole */
+.blade{display:inline-block;background:var(--rule);color:var(--paper);
+  font-family:var(--f-cond);font-weight:700;letter-spacing:.06em;
+  font-size:11.5px;padding:2px 6px;margin-right:8px;min-width:30px;
+  text-align:center;vertical-align:1px}
+
+.pill{display:inline-block;padding:2px 8px;font-family:var(--f-cond);
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  border:1px solid;white-space:nowrap}
+.pill.ok{color:var(--good);border-color:var(--good)}
+.pill.warn{color:var(--warn);border-color:var(--warn)}
+.pill.bad{color:var(--crit);border-color:var(--crit)}
+.pill.mute{color:var(--ink-3);border-color:var(--hair)}
+
+/* ---- controls ---------------------------------------------------------- */
+input[type=search]{width:100%;max-width:300px;padding:9px 12px;font-size:14px;
+  border:1px solid var(--ink-3);background:var(--paper);color:var(--ink);
+  font-family:var(--f-sans);border-radius:0}
+input[type=search]:focus{outline:2px solid var(--signal);outline-offset:1px;
+  border-color:var(--signal)}
+.controls{display:flex;gap:16px;flex-wrap:wrap;align-items:center;
+  margin-bottom:16px}
+.count{font-family:var(--f-mono);font-size:12px;color:var(--ink-3)}
+
+details{margin-top:20px;border-top:1px solid var(--hair);padding-top:6px}
+summary{cursor:pointer;font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.12em;font-size:11.5px;color:var(--ink-3);padding:8px 0;
+  user-select:none;font-weight:700}
+summary:hover{color:var(--signal)}
+details table{margin-top:12px}
+
+/* ---- pull-out finding -------------------------------------------------- */
+.finding{border-left:4px solid var(--signal);padding:4px 0 4px 20px;
+  margin:26px 0}
+.finding h3{font-family:var(--f-serif);text-transform:none;letter-spacing:-.01em;
+  font-size:20px;font-weight:400;line-height:1.25;color:var(--ink);
+  margin:0 0 10px}
+.finding p{margin:0;color:var(--ink-2);font-size:15.5px;line-height:1.62;
+  max-width:64ch}
+.finding em{font-style:italic}
+
+ul.note{padding-left:20px}
+ul.note li{margin-bottom:9px}
+
+footer{border-top:2px solid var(--rule);margin-top:56px;padding-top:22px;
+  font-family:var(--f-sans);font-size:12.5px;color:var(--ink-3);
+  line-height:1.75;max-width:78ch}
+
+code{font-family:var(--f-mono);font-size:.88em;background:var(--band);
+  padding:2px 5px;letter-spacing:-.02em}
+.board code,.masthead code{background:rgba(255,255,255,.14)}
+
+/* ---- heatmap ramp ------------------------------------------------------ */
+.hm-na{fill:var(--hair)}
+.hm-0{fill:#eff5fd}
+.hm-1{fill:#d8e8fb}
+.hm-2{fill:#c1dbf8}
+.hm-3{fill:#a9cdf5}
+.hm-4{fill:#91bff1}
+.hm-5{fill:#78b0ed}
+.hm-6{fill:#5fa1e8}
+.hm-7{fill:#4691e2}
+.hm-8{fill:#2f80d9}
+.hm-9{fill:#1f6ec2}
+.hm-10{fill:#155aa4}
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){}
+  :root:where(:not([data-theme="light"])) .hm-0{fill:#16202b} :root:where(:not([data-theme="light"])) .hm-1{fill:#1a2a3b} :root:where(:not([data-theme="light"])) .hm-2{fill:#1d354c} :root:where(:not([data-theme="light"])) .hm-3{fill:#20405e} :root:where(:not([data-theme="light"])) .hm-4{fill:#224b70} :root:where(:not([data-theme="light"])) .hm-5{fill:#245683} :root:where(:not([data-theme="light"])) .hm-6{fill:#256296} :root:where(:not([data-theme="light"])) .hm-7{fill:#256ea9} :root:where(:not([data-theme="light"])) .hm-8{fill:#2d7bbb} :root:where(:not([data-theme="light"])) .hm-9{fill:#4189cc} :root:where(:not([data-theme="light"])) .hm-10{fill:#5d98d9}
+}
+</style></head><body>
+<div class="masthead"><div class="inner"><span class="brand"><span>Why Is My Bus <em>Late</em>?</span></span><nav><a href="index.html" class="">Overview</a><a href="routes.html" class="on">Routes</a><a href="causes.html" class="">Causes</a><a href="when.html" class="">When</a><a href="methodology.html" class="">Method</a></nav></div></div>
+<div class="wrap">
+<div class="banner"><b>Placeholder build.</b> This page was generated without the published TTC files, so the figures below stand in for the real ones and should <b>not</b> be read as findings about the TTC.</div>
+<header class="page">
+<p class="kicker">Section 01 &middot; Where</p>
+<h1>Routes</h1>
+<p class="lede">Every route ranked by the waiting it puts on riders, with the
+ranking it would get from a plain incident count next to it. Where those two
+disagree is where counting incidents would have sent me to the wrong place.</p>
+</header>
+<div class="card">
+<h2>Incidents logged vs waiting caused</h2>
+<p class="note">Each dot is a route. If an incident count told you everything you needed, these would sit on a straight line. The routes sitting furthest above the crowd are the ones whose incidents run unusually long.</p>
+<svg viewBox="0 0 900 340" role="img"><line class="gl" x1="62" y1="294.0" x2="882" y2="294.0"/><text class="tk" x="54" y="297.5" text-anchor="end">0</text><line class="gl" x1="62" y1="224.5" x2="882" y2="224.5"/><text class="tk" x="54" y="228.0" text-anchor="end">714.8k</text><line class="gl" x1="62" y1="155.0" x2="882" y2="155.0"/><text class="tk" x="54" y="158.5" text-anchor="end">1.4M</text><line class="gl" x1="62" y1="85.5" x2="882" y2="85.5"/><text class="tk" x="54" y="89.0" text-anchor="end">2.1M</text><line class="gl" x1="62" y1="16.0" x2="882" y2="16.0"/><text class="tk" x="54" y="19.5" text-anchor="end">2.9M</text><text class="tk" x="62.0" y="312" text-anchor="middle">0</text><text class="tk" x="267.0" y="312" text-anchor="middle">3.4k</text><text class="tk" x="472.0" y="312" text-anchor="middle">6.8k</text><text class="tk" x="677.0" y="312" text-anchor="middle">10.1k</text><text class="tk" x="882.0" y="312" text-anchor="middle">13.5k</text><line class="ax" x1="62" y1="294" x2="882" y2="294"/><circle class="bar" cx="790.7" cy="36.6" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>84 SHEPPARD WEST: 12,006 incidents, 2.6M impact</title></circle><circle class="bar" cx="821.3" cy="69.9" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>36 FINCH WEST: 12,509 incidents, 2.3M impact</title></circle><circle class="bar" cx="745.0" cy="71.6" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>43 KENNEDY: 11,253 incidents, 2.3M impact</title></circle><circle class="bar" cx="724.8" cy="75.4" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>53 STEELES EAST: 10,920 incidents, 2.2M impact</title></circle><circle class="bar" cx="596.3" cy="101.5" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>96 WILSON: 8,802 incidents, 2.0M impact</title></circle><circle class="bar" cx="602.7" cy="106.2" r="6" fill="var(--s5)" stroke="var(--surface)" stroke-width="1.5"><title>25 DON MILLS: 8,908 incidents, 1.9M impact</title></circle><circle class="bar" cx="512.2" cy="117.6" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>89 WESTON: 7,417 incidents, 1.8M impact</title></circle><circle class="bar" cx="485.1" cy="125.1" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>100 FLEMINGDON PARK: 6,970 incidents, 1.7M impact</title></circle><circle class="bar" cx="535.3" cy="143.8" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>32 EGLINTON WEST: 7,798 incidents, 1.5M impact</title></circle><circle class="bar" cx="430.1" cy="147.4" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>34 EGLINTON EAST: 6,065 incidents, 1.5M impact</title></circle><circle class="bar" cx="500.1" cy="148.5" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>52 LAWRENCE WEST: 7,217 incidents, 1.5M impact</title></circle><circle class="bar" cx="496.6" cy="153.6" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>29 DUFFERIN: 7,160 incidents, 1.4M impact</title></circle><circle class="bar" cx="491.0" cy="159.1" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>7 BATHURST: 7,068 incidents, 1.4M impact</title></circle><circle class="bar" cx="590.4" cy="161.2" r="6" fill="var(--s1)" stroke="var(--surface)" stroke-width="1.5"><title>85 SHEPPARD EAST: 8,706 incidents, 1.4M impact</title></circle><circle class="bar" cx="644.1" cy="162.9" r="6" fill="var(--s1)" stroke="var(--surface)" stroke-width="1.5"><title>39 FINCH EAST: 9,590 incidents, 1.3M impact</title></circle><circle class="bar" cx="525.1" cy="163.1" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>60 STEELES WEST: 7,629 incidents, 1.3M impact</title></circle><circle class="bar" cx="409.2" cy="163.6" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>102 MARKHAM ROAD: 5,721 incidents, 1.3M impact</title></circle><circle class="bar" cx="505.0" cy="167.0" r="6" fill="var(--s2)" stroke="var(--surface)" stroke-width="1.5"><title>95 YORK MILLS: 7,299 incidents, 1.3M impact</title></circle><circle class="bar" cx="515.7" cy="173.7" r="6" fill="var(--s1)" stroke="var(--surface)" stroke-width="1.5"><title>68 WARDEN: 7,475 incidents, 1.2M impact</title></circle><circle class="bar" cx="429.9" cy="174.8" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>985 SHEPPARD EAST EXPRESS: 6,062 incidents, 1.2M impact</title></circle><circle class="bar" cx="367.1" cy="175.1" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>165 WESTON RD NORTH: 5,026 incidents, 1.2M impact</title></circle><circle class="bar" cx="344.7" cy="194.0" r="6" fill="var(--s2)" stroke="var(--surface)" stroke-width="1.5"><title>41 KEELE: 4,657 incidents, 1.0M impact</title></circle><circle class="bar" cx="394.2" cy="199.5" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>35 JANE: 5,473 incidents, 972.0k impact</title></circle><circle class="bar" cx="309.5" cy="204.7" r="6" fill="var(--s2)" stroke="var(--surface)" stroke-width="1.5"><title>116 MORNINGSIDE: 4,077 incidents, 918.5k impact</title></circle><circle class="bar" cx="251.4" cy="213.1" r="6" fill="var(--s2)" stroke="var(--surface)" stroke-width="1.5"><title>168 SYMINGTON: 3,120 incidents, 832.1k impact</title></circle><circle class="bar" cx="270.6" cy="225.3" r="6" fill="var(--s3)" stroke="var(--surface)" stroke-width="1.5"><title>927 HIGHWAY 27 EXPRESS: 3,437 incidents, 706.2k impact</title></circle><circle class="bar" cx="176.8" cy="233.0" r="6" fill="var(--s1)" stroke="var(--surface)" stroke-width="1.5"><title>320 YONGE NIGHT: 1,892 incidents, 627.6k impact</title></circle><circle class="bar" cx="176.2" cy="242.7" r="6" fill="var(--s1)" stroke="var(--surface)" stroke-width="1.5"><title>300 BLOOR-DANFORTH NIGHT: 1,882 incidents, 527.9k impact</title></circle><text class="tk" x="472.0" y="332" text-anchor="middle">Incidents logged</text><text class="tk" transform="translate(14,155.0) rotate(-90)" text-anchor="middle">Rider impact index</text></svg>
+<div class="legend"><span><i class="sw" style="background:var(--s3)"></i>External (weather, traffic, events)</span><span><i class="sw" style="background:var(--s5)"></i>Collisions</span><span><i class="sw" style="background:var(--s1)"></i>Operator &amp; scheduling</span><span><i class="sw" style="background:var(--s2)"></i>Mechanical</span></div>
+<p class="note" style="margin-top:6px">Colour shows the cause category responsible for most of that route's rider impact.</p>
+</div>
+<div class="card">
+<h2>Route scorecard</h2>
+<p class="note">Sortable and searchable. <b>Shift</b> is how many places a route moves when ranked by rider impact instead of incident count &mdash; positive means it is worse for riders than the count suggests. <b>Confidence</b> reflects whether the route's headway could be derived from its own data or had to be assumed.</p>
+<div class="controls"><input type="search" id="q" placeholder="Filter routes…" aria-label="Filter routes"><span class="count" id="count"></span></div>
+<div class="scroll"><table id="rt"><thead><tr><th class="sortable" data-k="rank">#<span class="arrow">↕</span></th><th class="sortable" data-k="route">Route<span class="arrow">↕</span></th><th class="sortable" data-k="incidents">Incidents<span class="arrow">↕</span></th><th class="sortable" data-k="shift">Shift<span class="arrow">↕</span></th><th class="sortable" data-k="headway">Headway<span class="arrow">↕</span></th><th class="sortable" data-k="gap">Avg gap<span class="arrow">↕</span></th><th class="sortable" data-k="wait">Wait<span class="arrow">↕</span></th><th class="sortable" data-k="impact">Impact<span class="arrow">↕</span></th><th class="sortable" data-k="cause">Cause<span class="arrow">↕</span></th><th class="sortable" data-k="conf">Conf.<span class="arrow">↕</span></th></tr></thead><tbody></tbody></table></div>
+</div>
+<script>
+const DATA = [{"rank": 1, "route": "84 SHEPPARD WEST", "type": "regular", "incidents": 12006, "cntRank": 2, "shift": 1, "headway": 8.1, "gap": 23.5, "wait": 7.66, "impact": 2647267.0, "pct": 6.56, "cause": "External", "conf": "estimated"}, {"rank": 2, "route": "36 FINCH WEST", "type": "regular", "incidents": 12509, "cntRank": 1, "shift": -1, "headway": 5.1, "gap": 20.1, "wait": 7.1, "impact": 2305010.0, "pct": 5.71, "cause": "External", "conf": "estimated"}, {"rank": 3, "route": "43 KENNEDY", "type": "regular", "incidents": 11253, "cntRank": 3, "shift": 0, "headway": 7.2, "gap": 22.0, "wait": 7.12, "impact": 2287441.0, "pct": 5.67, "cause": "External", "conf": "estimated"}, {"rank": 4, "route": "53 STEELES EAST", "type": "regular", "incidents": 10920, "cntRank": 4, "shift": 0, "headway": 7.5, "gap": 22.3, "wait": 7.27, "impact": 2248003.0, "pct": 5.57, "cause": "External", "conf": "estimated"}, {"rank": 5, "route": "96 WILSON", "type": "regular", "incidents": 8802, "cntRank": 7, "shift": 2, "headway": 7.9, "gap": 24.2, "wait": 7.83, "impact": 1979897.0, "pct": 4.91, "cause": "External", "conf": "estimated"}, {"rank": 6, "route": "25 DON MILLS", "type": "regular", "incidents": 8908, "cntRank": 6, "shift": 0, "headway": 5.3, "gap": 21.1, "wait": 7.47, "impact": 1931354.0, "pct": 4.79, "cause": "Collision", "conf": "estimated"}, {"rank": 7, "route": "89 WESTON", "type": "regular", "incidents": 7417, "cntRank": 12, "shift": 5, "headway": 10.3, "gap": 27.5, "wait": 7.72, "impact": 1813907.0, "pct": 4.5, "cause": "External", "conf": "estimated"}, {"rank": 8, "route": "100 FLEMINGDON PARK", "type": "regular", "incidents": 6970, "cntRank": 17, "shift": 9, "headway": 12.3, "gap": 28.2, "wait": 7.61, "impact": 1736874.0, "pct": 4.31, "cause": "External", "conf": "estimated"}, {"rank": 9, "route": "32 EGLINTON WEST", "type": "regular", "incidents": 7798, "cntRank": 9, "shift": 0, "headway": 5.1, "gap": 20.3, "wait": 7.3, "impact": 1544955.0, "pct": 3.83, "cause": "External", "conf": "estimated"}, {"rank": 10, "route": "34 EGLINTON EAST", "type": "regular", "incidents": 6065, "cntRank": 18, "shift": 8, "headway": 7.5, "gap": 24.7, "wait": 8.04, "impact": 1508199.0, "pct": 3.74, "cause": "External", "conf": "estimated"}, {"rank": 11, "route": "52 LAWRENCE WEST", "type": "regular", "incidents": 7217, "cntRank": 14, "shift": 3, "headway": 6.2, "gap": 21.5, "wait": 7.57, "impact": 1496487.0, "pct": 3.71, "cause": "External", "conf": "estimated"}, {"rank": 12, "route": "29 DUFFERIN", "type": "regular", "incidents": 7160, "cntRank": 15, "shift": 3, "headway": 5.1, "gap": 20.8, "wait": 7.38, "impact": 1444388.0, "pct": 3.58, "cause": "External", "conf": "estimated"}, {"rank": 13, "route": "7 BATHURST", "type": "regular", "incidents": 7068, "cntRank": 16, "shift": 3, "headway": 7.9, "gap": 23.0, "wait": 7.19, "impact": 1387354.0, "pct": 3.44, "cause": "External", "conf": "estimated"}, {"rank": 14, "route": "85 SHEPPARD EAST", "type": "regular", "incidents": 8706, "cntRank": 8, "shift": -6, "headway": 6.2, "gap": 19.5, "wait": 6.22, "impact": 1365623.0, "pct": 3.39, "cause": "Operator", "conf": "estimated"}, {"rank": 15, "route": "39 FINCH EAST", "type": "regular", "incidents": 9590, "cntRank": 5, "shift": -10, "headway": 5.1, "gap": 17.8, "wait": 6.07, "impact": 1348197.0, "pct": 3.34, "cause": "Operator", "conf": "estimated"}, {"rank": 16, "route": "60 STEELES WEST", "type": "regular", "incidents": 7629, "cntRank": 10, "shift": -6, "headway": 7.3, "gap": 21.3, "wait": 6.79, "impact": 1346246.0, "pct": 3.34, "cause": "External", "conf": "estimated"}, {"rank": 17, "route": "102 MARKHAM ROAD", "type": "regular", "incidents": 5721, "cntRank": 20, "shift": 3, "headway": 10.3, "gap": 25.5, "wait": 7.52, "impact": 1341273.0, "pct": 3.33, "cause": "External", "conf": "estimated"}, {"rank": 18, "route": "95 YORK MILLS", "type": "regular", "incidents": 7299, "cntRank": 13, "shift": -5, "headway": 7.3, "gap": 21.5, "wait": 6.83, "impact": 1306164.0, "pct": 3.24, "cause": "Mechanical", "conf": "estimated"}, {"rank": 19, "route": "68 WARDEN", "type": "regular", "incidents": 7475, "cntRank": 11, "shift": -8, "headway": 9.1, "gap": 22.0, "wait": 6.42, "impact": 1236828.0, "pct": 3.07, "cause": "Operator", "conf": "estimated"}, {"rank": 20, "route": "985 SHEPPARD EAST EXPRESS", "type": "express", "incidents": 6062, "cntRank": 19, "shift": -1, "headway": 10.3, "gap": 24.8, "wait": 6.83, "impact": 1226010.0, "pct": 3.04, "cause": "External", "conf": "estimated"}, {"rank": 21, "route": "165 WESTON RD NORTH", "type": "regular", "incidents": 5026, "cntRank": 22, "shift": 1, "headway": 15.4, "gap": 30.8, "wait": 7.04, "impact": 1222665.0, "pct": 3.03, "cause": "External", "conf": "estimated"}, {"rank": 22, "route": "41 KEELE", "type": "regular", "incidents": 4657, "cntRank": 23, "shift": 1, "headway": 8.1, "gap": 24.1, "wait": 7.62, "impact": 1028442.0, "pct": 2.55, "cause": "Mechanical", "conf": "estimated"}, {"rank": 23, "route": "35 JANE", "type": "regular", "incidents": 5473, "cntRank": 21, "shift": -2, "headway": 6.2, "gap": 20.2, "wait": 6.83, "impact": 972028.0, "pct": 2.41, "cause": "External", "conf": "estimated"}, {"rank": 24, "route": "116 MORNINGSIDE", "type": "regular", "incidents": 4077, "cntRank": 24, "shift": 0, "headway": 12.4, "gap": 27.2, "wait": 7.43, "impact": 918525.0, "pct": 2.28, "cause": "Mechanical", "conf": "estimated"}, {"rank": 25, "route": "168 SYMINGTON", "type": "regular", "incidents": 3120, "cntRank": 26, "shift": 1, "headway": 20.0, "gap": 35.7, "wait": 7.47, "impact": 832126.0, "pct": 2.06, "cause": "Mechanical", "conf": "estimated"}, {"rank": 26, "route": "927 HIGHWAY 27 EXPRESS", "type": "express", "incidents": 3437, "cntRank": 25, "shift": -1, "headway": 12.4, "gap": 26.3, "wait": 6.95, "impact": 706241.0, "pct": 1.75, "cause": "External", "conf": "estimated"}, {"rank": 27, "route": "320 YONGE NIGHT", "type": "night", "incidents": 1892, "cntRank": 27, "shift": 0, "headway": 30.3, "gap": 46.4, "wait": 7.48, "impact": 627626.0, "pct": 1.56, "cause": "Operator", "conf": "estimated"}, {"rank": 28, "route": "300 BLOOR-DANFORTH NIGHT", "type": "night", "incidents": 1882, "cntRank": 28, "shift": 0, "headway": 29.9, "gap": 43.4, "wait": 6.84, "impact": 527931.0, "pct": 1.31, "cause": "Operator", "conf": "estimated"}];
+const NUM = new Set(["rank","incidents","cntRank","shift","headway","gap",
+                     "wait","impact","pct"]);
+let sortKey = "rank", sortAsc = true;
+const tbody = document.querySelector("#rt tbody");
+const search = document.getElementById("q");
+const countEl = document.getElementById("count");
+const fmt = (v, p) => v.toLocaleString(undefined,
+  {minimumFractionDigits: p, maximumFractionDigits: p});
+const compactNum = v => v >= 1e6 ? (v/1e6).toFixed(2) + "M"
+                     : (v >= 1e3 ? (v/1e3).toFixed(0) + "k" : v.toFixed(0));
+const blade = label => {
+  const i = label.indexOf(" ");
+  if (i < 0) return `<span class="blade">${label}</span>`;
+  const num = label.slice(0, i), name = label.slice(i + 1).toLowerCase()
+    .replace(/\b\w/g, m => m.toUpperCase());
+  return `<span class="blade">${num}</span>${name}`;
+};
+const conf = c => c === "estimated"
+  ? '<span class="pill mute">derived</span>'
+  : (c === "assumed" ? '<span class="pill bad">assumed</span>'
+                     : '<span class="pill warn">partly</span>');
+function render() {
+  const term = search.value.trim().toLowerCase();
+  let rows = DATA.filter(r =>
+    !term || r.route.toLowerCase().includes(term) ||
+    r.cause.toLowerCase().includes(term) || r.type.toLowerCase().includes(term));
+  rows.sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    const c = NUM.has(sortKey) ? x - y : String(x).localeCompare(String(y));
+    return sortAsc ? c : -c;
+  });
+  tbody.innerHTML = rows.map(r => "<tr>" +
+    `<td class="n">${r.rank}</td>` +
+    `<td class="nw">${blade(r.route)}</td>` +
+    `<td class="n">${fmt(r.incidents,0)}</td>` +
+    `<td class="n">${r.shift > 0 ? "+" : ""}${r.shift}</td>` +
+    `<td class="n">${fmt(r.headway,1)}</td>` +
+    `<td class="n">${fmt(r.gap,1)}</td>` +
+    `<td class="n">${fmt(r.wait,1)}</td>` +
+    `<td class="n">${compactNum(r.impact)}</td>` +
+    `<td class="nw">${r.cause}</td>` +
+    `<td>${conf(r.conf)}</td>` + "</tr>").join("");
+  countEl.textContent = `${rows.length} of ${DATA.length} routes`;
+  document.querySelectorAll("#rt th").forEach(th =>
+    th.classList.toggle("active", th.dataset.k === sortKey));
+}
+document.querySelectorAll("#rt th.sortable").forEach(th =>
+  th.addEventListener("click", () => {
+    const k = th.dataset.k;
+    if (k === sortKey) { sortAsc = !sortAsc; }
+    else { sortKey = k; sortAsc = !NUM.has(k) || k === "rank"; }
+    render();
+  }));
+search.addEventListener("input", render);
+render();
+</script>
+<div class="card">
+<h2>Where incidents concentrate</h2>
+<p class="note">Location is typed in free-hand by staff and is easily the messiest field in the dataset &mdash; the same corner shows up several different ways. I group these after light cleaning, so read them as indicative rather than exact.</p>
+<svg viewBox="0 0 900 458" role="img"><text class="al" x="238" y="21" text-anchor="end">Warden</text><rect class="bar" x="250" y="9" width="554.0" height="18" rx="4" fill="var(--s3)"><title>Warden: 2.4M</title></rect><text class="dl" x="813.0" y="22.5">2.4M</text><text class="al" x="238" y="51" text-anchor="end">Dufferin And Eglinton</text><rect class="bar" x="250" y="39" width="544.3" height="18" rx="4" fill="var(--s3)"><title>Dufferin And Eglinton: 2.3M</title></rect><text class="dl" x="803.3" y="52.5">2.3M</text><text class="al" x="238" y="81" text-anchor="end">Keele And Wilson</text><rect class="bar" x="250" y="69" width="543.6" height="18" rx="4" fill="var(--s3)"><title>Keele And Wilson: 2.3M</title></rect><text class="dl" x="802.6" y="82.5">2.3M</text><text class="al" x="238" y="111" text-anchor="end">Finch</text><rect class="bar" x="250" y="99" width="535.7" height="18" rx="4" fill="var(--s3)"><title>Finch: 2.3M</title></rect><text class="dl" x="794.7" y="112.5">2.3M</text><text class="al" x="238" y="141" text-anchor="end">Steeles And Yonge</text><rect class="bar" x="250" y="129" width="531.9" height="18" rx="4" fill="var(--s3)"><title>Steeles And Yonge: 2.3M</title></rect><text class="dl" x="790.9" y="142.5">2.3M</text><text class="al" x="238" y="171" text-anchor="end">Kennedy</text><rect class="bar" x="250" y="159" width="527.6" height="18" rx="4" fill="var(--s3)"><title>Kennedy: 2.3M</title></rect><text class="dl" x="786.6" y="172.5">2.3M</text><text class="al" x="238" y="201" text-anchor="end">Wilson</text><rect class="bar" x="250" y="189" width="522.4" height="18" rx="4" fill="var(--s3)"><title>Wilson: 2.3M</title></rect><text class="dl" x="781.4" y="202.5">2.3M</text><text class="al" x="238" y="231" text-anchor="end">York Mills</text><rect class="bar" x="250" y="219" width="520.0" height="18" rx="4" fill="var(--s3)"><title>York Mills: 2.2M</title></rect><text class="dl" x="779.0" y="232.5">2.2M</text><text class="al" x="238" y="261" text-anchor="end">Kipling</text><rect class="bar" x="250" y="249" width="519.9" height="18" rx="4" fill="var(--s3)"><title>Kipling: 2.2M</title></rect><text class="dl" x="778.9" y="262.5">2.2M</text><text class="al" x="238" y="291" text-anchor="end">Bathurst And St Clair</text><rect class="bar" x="250" y="279" width="518.6" height="18" rx="4" fill="var(--s3)"><title>Bathurst And St Clair: 2.2M</title></rect><text class="dl" x="777.6" y="292.5">2.2M</text><text class="al" x="238" y="321" text-anchor="end">Sheppard And Victoria Park</text><rect class="bar" x="250" y="309" width="517.8" height="18" rx="4" fill="var(--s3)"><title>Sheppard And Victoria Park: 2.2M</title></rect><text class="dl" x="776.8" y="322.5">2.2M</text><text class="al" x="238" y="351" text-anchor="end">Broadview</text><rect class="bar" x="250" y="339" width="512.4" height="18" rx="4" fill="var(--s3)"><title>Broadview: 2.2M</title></rect><text class="dl" x="771.4" y="352.5">2.2M</text><text class="al" x="238" y="381" text-anchor="end">Don Mills</text><rect class="bar" x="250" y="369" width="511.2" height="18" rx="4" fill="var(--s3)"><title>Don Mills: 2.2M</title></rect><text class="dl" x="770.2" y="382.5">2.2M</text><text class="al" x="238" y="411" text-anchor="end">Jane And Finch</text><rect class="bar" x="250" y="399" width="508.3" height="18" rx="4" fill="var(--s3)"><title>Jane And Finch: 2.2M</title></rect><text class="dl" x="767.3" y="412.5">2.2M</text><text class="al" x="238" y="441" text-anchor="end">Scarborough Centre</text><rect class="bar" x="250" y="429" width="507.1" height="18" rx="4" fill="var(--s3)"><title>Scarborough Centre: 2.2M</title></rect><text class="dl" x="766.1" y="442.5">2.2M</text></svg>
+<details><summary>Full hotspot table</summary><div class="scroll"><table><thead><tr><th>Location</th><th>Incidents</th><th>Routes</th><th>Avg gap</th><th>Worst gap</th><th>Rider impact</th><th>% of total</th><th>Main cause</th></tr></thead><tbody><tr><td class="">Warden</td><td class="n">10,941</td><td class="n">28</td><td class="n">23.9</td><td class="n">999</td><td class="n">2,390,728</td><td class="n">5.93%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Dufferin And Eglinton</td><td class="n">11,054</td><td class="n">28</td><td class="n">23.8</td><td class="n">999</td><td class="n">2,348,914</td><td class="n">5.82%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Keele And Wilson</td><td class="n">10,932</td><td class="n">28</td><td class="n">24.0</td><td class="n">999</td><td class="n">2,345,646</td><td class="n">5.82%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Finch</td><td class="n">10,914</td><td class="n">28</td><td class="n">23.4</td><td class="n">999</td><td class="n">2,311,897</td><td class="n">5.73%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Steeles And Yonge</td><td class="n">11,016</td><td class="n">28</td><td class="n">23.7</td><td class="n">999</td><td class="n">2,295,346</td><td class="n">5.69%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Kennedy</td><td class="n">10,830</td><td class="n">28</td><td class="n">23.3</td><td class="n">999</td><td class="n">2,276,841</td><td class="n">5.64%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Wilson</td><td class="n">10,971</td><td class="n">28</td><td class="n">23.7</td><td class="n">999</td><td class="n">2,254,268</td><td class="n">5.59%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">York Mills</td><td class="n">10,963</td><td class="n">28</td><td class="n">23.3</td><td class="n">999</td><td class="n">2,244,025</td><td class="n">5.56%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Kipling</td><td class="n">10,960</td><td class="n">28</td><td class="n">23.5</td><td class="n">999</td><td class="n">2,243,583</td><td class="n">5.56%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Bathurst And St Clair</td><td class="n">10,700</td><td class="n">28</td><td class="n">23.1</td><td class="n">999</td><td class="n">2,237,753</td><td class="n">5.55%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Sheppard And Victoria Park</td><td class="n">10,848</td><td class="n">28</td><td class="n">22.9</td><td class="n">999</td><td class="n">2,234,347</td><td class="n">5.54%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Broadview</td><td class="n">10,887</td><td class="n">28</td><td class="n">23.5</td><td class="n">999</td><td class="n">2,211,271</td><td class="n">5.48%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Don Mills</td><td class="n">10,938</td><td class="n">28</td><td class="n">23.2</td><td class="n">999</td><td class="n">2,205,861</td><td class="n">5.47%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Jane And Finch</td><td class="n">10,732</td><td class="n">28</td><td class="n">23.0</td><td class="n">999</td><td class="n">2,193,412</td><td class="n">5.44%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Scarborough Centre</td><td class="n">10,893</td><td class="n">28</td><td class="n">23.6</td><td class="n">999</td><td class="n">2,188,245</td><td class="n">5.42%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Morningside And Kingston</td><td class="n">10,962</td><td class="n">28</td><td class="n">22.8</td><td class="n">999</td><td class="n">2,162,944</td><td class="n">5.36%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Eglinton</td><td class="n">10,855</td><td class="n">28</td><td class="n">22.7</td><td class="n">999</td><td class="n">2,119,678</td><td class="n">5.25%</td><td class="">External (weather, traffic, events)</td></tr><tr><td class="">Markham And Lawrence</td><td class="n">10,743</td><td class="n">28</td><td class="n">22.9</td><td class="n">999</td><td class="n">2,072,295</td><td class="n">5.14%</td><td class="">External (weather, traffic, events)</td></tr></tbody></table></div></details>
+</div>
+<footer>
+<b>Source.</b> City of Toronto Open Data, TTC Bus Delay Data, used under the
+Open Government Licence &ndash; Toronto. Independent analysis; not affiliated
+with or endorsed by the TTC.<br>
+<b>Method.</b> The published files are reconciled into one table and analysed in
+SQL; these pages are generated from the result and rebuild monthly. Last built
+2026-08-23T05:42:21. Figures marked <em>estimated</em> rest on an assumption about
+boarding rates, set out on the <a href="methodology.html">method</a> page.
+</footer>
+</div></body></html>

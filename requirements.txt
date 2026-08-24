@@ -1,0 +1,10 @@
+# The warehouse is SQLite (stdlib), the tests are unittest (stdlib), and the
+# site is hand-built SVG (stdlib). Only data wrangling needs a real dependency.
+pandas>=2.0
+numpy>=1.24
+
+# Needed only if you download the .xlsx files rather than the .csv ones.
+openpyxl>=3.1
+
+# Optional, development only:
+# pytest>=7.0        # the suite is unittest-based but pytest-compatible

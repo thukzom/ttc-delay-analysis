@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Causes — Why Is My Bus Late?</title>
+<meta name="description" content="An analysis of TTC bus delays measured as the
+waiting time riders actually experience, not how late the vehicles were.">
+<meta name="color-scheme" content="light dark">
+<style>
+/* ===========================================================================
+   Transit editorial.
+
+   Three typefaces doing three different jobs, which is what keeps this from
+   looking like a default dashboard:
+
+     serif      prose and headlines - editorial, meant to be read
+     condensed  labels, kickers, nav, table headers - transit signage
+     monospace  every number, always tabular - timetable
+
+   Layout is ruled, not boxed: 2px ink rules open each block instead of rounded
+   cards on a tinted ground. Colour is ink-on-paper with a single signal red
+   used only for emphasis; the chart series palette is separate and validated
+   for colour-vision deficiency against both surfaces below.
+   =========================================================================== */
+
+:root{
+  --paper:#ffffff;
+  --band:#f2efe7;
+  --ink:#141412;
+  --ink-2:#55534b;
+  --ink-3:#8b887e;
+  --hair:rgba(20,20,18,.15);
+  --rule:#141412;
+  --signal:#c8241c;
+  --masthead:#141412;
+  --masthead-ink:#f5f2ea;
+
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300;
+  --good:#0ca30c; --warn:#b07800; --crit:#c8241c;
+
+  --f-serif:Georgia,"Iowan Old Style","Palatino Linotype",Palatino,
+            "Times New Roman",serif;
+  --f-cond:"Arial Narrow","Helvetica Neue Condensed",
+           "Roboto Condensed",Helvetica,Arial,sans-serif;
+  --f-sans:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+  --f-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:where(:not([data-theme="light"])){
+    --paper:#101010;
+    --band:#1a1a18;
+    --ink:#f2efe7;
+    --ink-2:#b5b2a8;
+    --ink-3:#7c7a71;
+    --hair:rgba(242,239,231,.18);
+    --rule:#f2efe7;
+    --signal:#ff5b45;
+    --masthead:#000000;
+    --masthead-ink:#f5f2ea;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --s5:#d55181; --s6:#008300;
+    --good:#0ca30c; --warn:#c98500; --crit:#ff5b45;
+    color-scheme:dark;
+  }
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:16px/1.65 var(--f-serif);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:underline;text-decoration-color:var(--signal);
+  text-underline-offset:3px;text-decoration-thickness:1.5px}
+a:hover{color:var(--signal)}
+
+.wrap{max-width:1080px;margin:0 auto;padding:0 26px 96px}
+
+/* ---- masthead ---------------------------------------------------------- */
+.masthead{background:var(--masthead);color:var(--masthead-ink);
+  border-bottom:3px solid var(--signal)}
+.masthead .inner{max-width:1080px;margin:0 auto;padding:0 26px;
+  display:flex;align-items:stretch;flex-wrap:wrap;gap:0;min-height:56px}
+.brand{font-family:var(--f-cond);font-weight:700;text-transform:uppercase;
+  letter-spacing:.14em;font-size:15px;display:flex;align-items:center;
+  padding-right:26px;margin-right:auto;white-space:nowrap}
+.brand em{font-style:normal;color:var(--signal)}
+.masthead nav{display:flex;align-items:stretch}
+.masthead nav a{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.12em;font-size:12.5px;text-decoration:none;
+  display:flex;align-items:center;padding:0 15px;color:var(--masthead-ink);
+  opacity:.72;border-bottom:3px solid transparent;margin-bottom:-3px}
+.masthead nav a:hover{opacity:1;color:var(--masthead-ink)}
+.masthead nav a.on{opacity:1;border-bottom-color:var(--signal);font-weight:700}
+@media(max-width:620px){
+  .masthead .inner{padding:0 16px}
+  .brand{width:100%;padding:12px 0 6px}
+  .masthead nav{flex-wrap:wrap;padding-bottom:2px}
+  .masthead nav a{padding:8px 13px 8px 0}
+}
+
+/* ---- notice ------------------------------------------------------------ */
+.banner{border-left:4px solid var(--signal);background:var(--band);
+  padding:14px 18px;margin:26px 0 0;font-size:14.5px;line-height:1.55}
+.banner b{font-weight:700}
+
+/* ---- page head --------------------------------------------------------- */
+header.page{padding:44px 0 30px;border-bottom:2px solid var(--rule);
+  margin-bottom:34px}
+.kicker{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.18em;font-size:12px;color:var(--signal);font-weight:700;
+  margin:0 0 14px}
+h1{font-family:var(--f-serif);font-size:clamp(34px,5.2vw,52px);font-weight:400;
+  line-height:1.06;letter-spacing:-.02em;margin:0 0 18px;max-width:19ch}
+.lede{font-size:18.5px;line-height:1.6;color:var(--ink-2);max-width:60ch;
+  margin:0}
+.meta{font-family:var(--f-mono);font-size:12px;color:var(--ink-3);
+  margin-top:24px;line-height:1.95;letter-spacing:-.01em;max-width:86ch;
+  border-top:1px solid var(--hair);padding-top:16px}
+
+/* ---- blocks ------------------------------------------------------------ */
+.card{border-top:2px solid var(--rule);padding:22px 0 30px;margin:0 0 6px}
+/* the page header already closes with a rule; don't double it */
+header.page + .card{border-top:none;padding-top:2px}
+header.page + .grid2 > .card:first-child{border-top:none;padding-top:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 44px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr;gap:0}}
+
+h2{font-family:var(--f-cond);text-transform:uppercase;letter-spacing:.14em;
+  font-size:13.5px;font-weight:700;margin:0 0 12px;color:var(--ink)}
+h3{font-family:var(--f-cond);text-transform:uppercase;letter-spacing:.12em;
+  font-size:12px;font-weight:700;margin:30px 0 10px;color:var(--ink-3)}
+.note{font-size:15.5px;line-height:1.62;color:var(--ink-2);margin:0 0 22px;
+  max-width:66ch}
+.note b{color:var(--ink);font-weight:700}
+
+/* ---- departure board (hero stats) -------------------------------------- */
+.board{background:var(--masthead);color:var(--masthead-ink);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  margin:0 0 34px;border-top:3px solid var(--signal)}
+.board .tile{padding:19px 17px 21px;border-right:1px solid rgba(245,242,234,.16);
+  border-bottom:1px solid rgba(245,242,234,.16)}
+.board .label{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.13em;font-size:10.5px;opacity:.66;margin-bottom:12px;
+  line-height:1.4;min-height:4.2em}
+.board .value{font-family:var(--f-mono);font-size:31px;font-weight:600;
+  letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums;
+  color:#fff}
+.board .foot{font-size:12.5px;opacity:.6;margin-top:11px;line-height:1.45;
+  font-family:var(--f-sans)}
+
+/* ---- plain stat row ---------------------------------------------------- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  border-top:1px solid var(--hair);margin:0 0 28px}
+.tiles .tile{padding:16px 18px 18px;border-bottom:1px solid var(--hair);
+  border-right:1px solid var(--hair)}
+.tiles .label{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.13em;font-size:10.5px;color:var(--ink-3);margin-bottom:10px;
+  line-height:1.4;min-height:4.2em}
+.tiles .value{font-family:var(--f-mono);font-size:24px;font-weight:600;
+  letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.tiles .foot{font-family:var(--f-sans);font-size:12px;color:var(--ink-3);
+  margin-top:9px;line-height:1.45}
+
+/* ---- charts ------------------------------------------------------------ */
+svg{display:block;width:100%;height:auto;overflow:visible}
+.gl{stroke:var(--hair);stroke-width:1}
+.ax{stroke:var(--ink-3);stroke-width:1}
+.tk{fill:var(--ink-3);font-size:11px;font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.dl{fill:var(--ink);font-size:11.5px;font-weight:600;font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.al{fill:var(--ink-2);font-size:12.5px;font-family:var(--f-sans)}
+.bar{transition:opacity .12s}
+.bar:hover{opacity:.7}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin:0 0 16px;
+  font-family:var(--f-sans);font-size:12px;color:var(--ink-2)}
+.legend span{display:flex;align-items:center;gap:8px}
+.sw{width:13px;height:13px;flex:none}
+
+/* ---- tables ------------------------------------------------------------ */
+table{width:100%;border-collapse:collapse;font-family:var(--f-sans);
+  font-size:13px}
+th{text-align:left;font-family:var(--f-cond);font-weight:700;color:var(--ink);
+  font-size:11px;text-transform:uppercase;letter-spacing:.11em;
+  padding:9px 9px;border-bottom:2px solid var(--rule);white-space:nowrap;
+  background:var(--paper)}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--signal)}
+th .arrow{opacity:.3;margin-left:3px;font-size:9px}
+th.active{color:var(--signal)}
+th.active .arrow{opacity:1}
+td{padding:8px 9px;border-bottom:1px solid var(--hair);vertical-align:baseline}
+td.n{text-align:right;font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+td.nw{white-space:nowrap}
+tbody tr:hover{background:var(--band)}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* route number blade, after the signage on a bus stop pole */
+.blade{display:inline-block;background:var(--rule);color:var(--paper);
+  font-family:var(--f-cond);font-weight:700;letter-spacing:.06em;
+  font-size:11.5px;padding:2px 6px;margin-right:8px;min-width:30px;
+  text-align:center;vertical-align:1px}
+
+.pill{display:inline-block;padding:2px 8px;font-family:var(--f-cond);
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  border:1px solid;white-space:nowrap}
+.pill.ok{color:var(--good);border-color:var(--good)}
+.pill.warn{color:var(--warn);border-color:var(--warn)}
+.pill.bad{color:var(--crit);border-color:var(--crit)}
+.pill.mute{color:var(--ink-3);border-color:var(--hair)}
+
+/* ---- controls ---------------------------------------------------------- */
+input[type=search]{width:100%;max-width:300px;padding:9px 12px;font-size:14px;
+  border:1px solid var(--ink-3);background:var(--paper);color:var(--ink);
+  font-family:var(--f-sans);border-radius:0}
+input[type=search]:focus{outline:2px solid var(--signal);outline-offset:1px;
+  border-color:var(--signal)}
+.controls{display:flex;gap:16px;flex-wrap:wrap;align-items:center;
+  margin-bottom:16px}
+.count{font-family:var(--f-mono);font-size:12px;color:var(--ink-3)}
+
+details{margin-top:20px;border-top:1px solid var(--hair);padding-top:6px}
+summary{cursor:pointer;font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.12em;font-size:11.5px;color:var(--ink-3);padding:8px 0;
+  user-select:none;font-weight:700}
+summary:hover{color:var(--signal)}
+details table{margin-top:12px}
+
+/* ---- pull-out finding -------------------------------------------------- */
+.finding{border-left:4px solid var(--signal);padding:4px 0 4px 20px;
+  margin:26px 0}
+.finding h3{font-family:var(--f-serif);text-transform:none;letter-spacing:-.01em;
+  font-size:20px;font-weight:400;line-height:1.25;color:var(--ink);
+  margin:0 0 10px}
+.finding p{margin:0;color:var(--ink-2);font-size:15.5px;line-height:1.62;
+  max-width:64ch}
+.finding em{font-style:italic}
+
+ul.note{padding-left:20px}
+ul.note li{margin-bottom:9px}
+
+footer{border-top:2px solid var(--rule);margin-top:56px;padding-top:22px;
+  font-family:var(--f-sans);font-size:12.5px;color:var(--ink-3);
+  line-height:1.75;max-width:78ch}
+
+code{font-family:var(--f-mono);font-size:.88em;background:var(--band);
+  padding:2px 5px;letter-spacing:-.02em}
+.board code,.masthead code{background:rgba(255,255,255,.14)}
+
+/* ---- heatmap ramp ------------------------------------------------------ */
+.hm-na{fill:var(--hair)}
+.hm-0{fill:#eff5fd}
+.hm-1{fill:#d8e8fb}
+.hm-2{fill:#c1dbf8}
+.hm-3{fill:#a9cdf5}
+.hm-4{fill:#91bff1}
+.hm-5{fill:#78b0ed}
+.hm-6{fill:#5fa1e8}
+.hm-7{fill:#4691e2}
+.hm-8{fill:#2f80d9}
+.hm-9{fill:#1f6ec2}
+.hm-10{fill:#155aa4}
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){}
+  :root:where(:not([data-theme="light"])) .hm-0{fill:#16202b} :root:where(:not([data-theme="light"])) .hm-1{fill:#1a2a3b} :root:where(:not([data-theme="light"])) .hm-2{fill:#1d354c} :root:where(:not([data-theme="light"])) .hm-3{fill:#20405e} :root:where(:not([data-theme="light"])) .hm-4{fill:#224b70} :root:where(:not([data-theme="light"])) .hm-5{fill:#245683} :root:where(:not([data-theme="light"])) .hm-6{fill:#256296} :root:where(:not([data-theme="light"])) .hm-7{fill:#256ea9} :root:where(:not([data-theme="light"])) .hm-8{fill:#2d7bbb} :root:where(:not([data-theme="light"])) .hm-9{fill:#4189cc} :root:where(:not([data-theme="light"])) .hm-10{fill:#5d98d9}
+}
+</style></head><body>
+<div class="masthead"><div class="inner"><span class="brand"><span>Why Is My Bus <em>Late</em>?</span></span><nav><a href="index.html" class="">Overview</a><a href="routes.html" class="">Routes</a><a href="causes.html" class="on">Causes</a><a href="when.html" class="">When</a><a href="methodology.html" class="">Method</a></nav></div></div>
+<div class="wrap">
+<div class="banner"><b>Placeholder build.</b> This page was generated without the published TTC files, so the figures below stand in for the real ones and should <b>not</b> be read as findings about the TTC.</div>
+<header class="page">
+<p class="kicker">Section 02 &middot; Why</p>
+<h1>Causes</h1>
+<p class="lede">Why the gaps happen, and what each reason actually costs the
+people waiting. The cause that gets logged most often is not the one that costs
+the most, and the difference is what decides where effort is worth spending.</p>
+</header>
+<div class="card">
+<h2>Frequency is not impact</h2>
+<p class="note">Each category's share of total rider impact minus its share of logged incidents. A bar to the right means the cause hurts riders more than its frequency suggests, because its incidents leave longer gaps behind them. A bar to the left means the opposite: it gets logged constantly, but each one is mild.</p>
+<svg viewBox="0 0 900 278" role="img"><line class="ax" x1="530.0" y1="4" x2="530.0" y2="256"/><text class="al" x="216" y="23" text-anchor="end">External (weather, traffic, events)</text><rect class="bar" x="530.0" y="11" width="184.5" height="18" rx="4" fill="var(--crit)"><title>External (weather, traffic, events): +14.4 pp</title></rect><text class="dl" x="722.5" y="24.5" text-anchor="start">+14.4 pp</text><text class="al" x="216" y="59" text-anchor="end">Mechanical</text><rect class="bar" x="530.0" y="47" width="49.3" height="18" rx="4" fill="var(--crit)"><title>Mechanical: +3.9 pp</title></rect><text class="dl" x="587.3" y="60.5" text-anchor="start">+3.9 pp</text><text class="al" x="216" y="95" text-anchor="end">Operator &amp; scheduling</text><rect class="bar" x="292.0" y="83" width="238.0" height="18" rx="4" fill="var(--s1)"><title>Operator &amp; scheduling: -18.6 pp</title></rect><text class="dl" x="284.0" y="96.5" text-anchor="end">-18.6 pp</text><text class="al" x="216" y="131" text-anchor="end">Collisions</text><rect class="bar" x="530.0" y="119" width="106.3" height="18" rx="4" fill="var(--crit)"><title>Collisions: +8.3 pp</title></rect><text class="dl" x="644.3" y="132.5" text-anchor="start">+8.3 pp</text><text class="al" x="216" y="167" text-anchor="end">Unclassified</text><rect class="bar" x="485.8" y="155" width="44.2" height="18" rx="4" fill="var(--s1)"><title>Unclassified: -3.5 pp</title></rect><text class="dl" x="477.8" y="168.5" text-anchor="end">-3.5 pp</text><text class="al" x="216" y="203" text-anchor="end">Security</text><rect class="bar" x="523.1" y="191" width="6.9" height="18" rx="4" fill="var(--s1)"><title>Security: -0.5 pp</title></rect><text class="dl" x="515.1" y="204.5" text-anchor="end">-0.5 pp</text><text class="al" x="216" y="239" text-anchor="end">Passenger incidents</text><rect class="bar" x="478.8" y="227" width="51.2" height="18" rx="4" fill="var(--s1)"><title>Passenger incidents: -4.0 pp</title></rect><text class="dl" x="470.8" y="240.5" text-anchor="end">-4.0 pp</text><text class="al" x="522.0" y="272" text-anchor="end" style="font-size:11.5px;opacity:.75">hurts riders less than its frequency suggests</text><text class="al" x="538.0" y="272" style="font-size:11.5px;opacity:.75">hurts riders more</text></svg>
+</div>
+<div class="grid2">
+<div class="card"><h2>Share of incidents</h2><p class="note">How often each category is logged.</p><svg viewBox="0 0 470 232" role="img"><text class="al" x="138" y="21" text-anchor="end">External</text><rect class="bar" x="150" y="9" width="166.5" height="18" rx="4" fill="var(--s3)"><title>External: 22.9%</title></rect><text class="dl" x="325.5" y="22.5">22.9%</text><text class="al" x="138" y="53" text-anchor="end">Mechanical</text><rect class="bar" x="150" y="41" width="142.3" height="18" rx="4" fill="var(--s2)"><title>Mechanical: 19.6%</title></rect><text class="dl" x="301.3" y="54.5">19.6%</text><text class="al" x="138" y="85" text-anchor="end">Operator</text><rect class="bar" x="150" y="73" width="252.0" height="18" rx="4" fill="var(--s1)"><title>Operator: 34.6%</title></rect><text class="dl" x="411.0" y="86.5">34.6%</text><text class="al" x="138" y="117" text-anchor="end">Collision</text><rect class="bar" x="150" y="105" width="31.0" height="18" rx="4" fill="var(--s5)"><title>Collision: 4.3%</title></rect><text class="dl" x="190.0" y="118.5">4.3%</text><text class="al" x="138" y="149" text-anchor="end">Unclassified</text><rect class="bar" x="150" y="137" width="57.6" height="18" rx="4" fill="var(--ink-3)"><title>Unclassified: 7.9%</title></rect><text class="dl" x="216.6" y="150.5">7.9%</text><text class="al" x="138" y="181" text-anchor="end">Security</text><rect class="bar" x="150" y="169" width="29.1" height="18" rx="4" fill="var(--s6)"><title>Security: 4.0%</title></rect><text class="dl" x="188.1" y="182.5">4.0%</text><text class="al" x="138" y="213" text-anchor="end">Passenger</text><rect class="bar" x="150" y="201" width="48.8" height="18" rx="4" fill="var(--s4)"><title>Passenger: 6.7%</title></rect><text class="dl" x="207.8" y="214.5">6.7%</text></svg></div>
+<div class="card"><h2>Share of rider impact</h2><p class="note">How much waiting each category actually causes.</p><svg viewBox="0 0 470 232" role="img"><text class="al" x="138" y="21" text-anchor="end">External</text><rect class="bar" x="150" y="9" width="252.0" height="18" rx="4" fill="var(--s3)"><title>External: 37.3%</title></rect><text class="dl" x="411.0" y="22.5">37.3%</text><text class="al" x="138" y="53" text-anchor="end">Mechanical</text><rect class="bar" x="150" y="41" width="158.1" height="18" rx="4" fill="var(--s2)"><title>Mechanical: 23.4%</title></rect><text class="dl" x="317.1" y="54.5">23.4%</text><text class="al" x="138" y="85" text-anchor="end">Operator</text><rect class="bar" x="150" y="73" width="108.5" height="18" rx="4" fill="var(--s1)"><title>Operator: 16.1%</title></rect><text class="dl" x="267.5" y="86.5">16.1%</text><text class="al" x="138" y="117" text-anchor="end">Collision</text><rect class="bar" x="150" y="105" width="84.9" height="18" rx="4" fill="var(--s5)"><title>Collision: 12.6%</title></rect><text class="dl" x="243.9" y="118.5">12.6%</text><text class="al" x="138" y="149" text-anchor="end">Unclassified</text><rect class="bar" x="150" y="137" width="30.2" height="18" rx="4" fill="var(--ink-3)"><title>Unclassified: 4.5%</title></rect><text class="dl" x="189.2" y="150.5">4.5%</text><text class="al" x="138" y="181" text-anchor="end">Security</text><rect class="bar" x="150" y="169" width="23.3" height="18" rx="4" fill="var(--s6)"><title>Security: 3.5%</title></rect><text class="dl" x="182.3" y="182.5">3.5%</text><text class="al" x="138" y="213" text-anchor="end">Passenger</text><rect class="bar" x="150" y="201" width="18.3" height="18" rx="4" fill="var(--s4)"><title>Passenger: 2.7%</title></rect><text class="dl" x="177.3" y="214.5">2.7%</text></svg></div>
+</div>
+<div class="card">
+<h2>Who could fix it</h2>
+<p class="note">A cause breakdown with nobody attached to it is not much use, so I assigned each category an owner and a judgement about whether it can realistically be reduced. That judgement is mine and it is debatable &mdash; weather and onboard medical incidents are not going away, whereas vehicle reliability and crew availability are things an organisation can choose to spend money on.</p>
+<div class="scroll"><table><thead><tr><th>Category</th><th>Tractability</th><th>Accountable</th><th>Incidents</th><th>% incidents</th><th>% impact</th><th>Difference</th><th>Avg gap</th><th>Routes</th></tr></thead><tbody><tr><td class=""><b>External (weather, traffic, events)</b></td><td class=""><span class="pill mute">largely irreducible</span></td><td class="">Weather, traffic and events - outside TTC control</td><td class="n">44,916</td><td class="n">22.9%</td><td class="n">37.3%</td><td class="n">+14.4 pp</td><td class="n">29.1</td><td class="n">28</td></tr><tr><td class=""><b>Mechanical</b></td><td class=""><span class="pill ok">addressable</span></td><td class="">TTC fleet maintenance and vehicle renewal</td><td class="n">38,364</td><td class="n">19.6%</td><td class="n">23.4%</td><td class="n">+3.9 pp</td><td class="n">25.7</td><td class="n">28</td></tr><tr><td class=""><b>Operator &amp; scheduling</b></td><td class=""><span class="pill ok">addressable</span></td><td class="">TTC scheduling, staffing and crew availability</td><td class="n">67,971</td><td class="n">34.6%</td><td class="n">16.1%</td><td class="n">-18.6 pp</td><td class="n">18.6</td><td class="n">28</td></tr><tr><td class=""><b>Collisions</b></td><td class=""><span class="pill warn">partly addressable</span></td><td class="">Road safety - shared with the City</td><td class="n">8,365</td><td class="n">4.3%</td><td class="n">12.6%</td><td class="n">+8.3 pp</td><td class="n">36.3</td><td class="n">28</td></tr><tr><td class=""><b>Unclassified</b></td><td class=""><span class="pill mute">unknown</span></td><td class="">Unclassified</td><td class="n">15,525</td><td class="n">7.9%</td><td class="n">4.5%</td><td class="n">-3.5 pp</td><td class="n">19.9</td><td class="n">28</td></tr><tr><td class=""><b>Security</b></td><td class=""><span class="pill warn">partly addressable</span></td><td class="">TTC special constables and police response</td><td class="n">7,836</td><td class="n">4.0%</td><td class="n">3.5%</td><td class="n">-0.5 pp</td><td class="n">22.3</td><td class="n">28</td></tr><tr><td class=""><b>Passenger incidents</b></td><td class=""><span class="pill mute">largely irreducible</span></td><td class="">Onboard incidents - largely irreducible</td><td class="n">13,162</td><td class="n">6.7%</td><td class="n">2.7%</td><td class="n">-4.0 pp</td><td class="n">17.8</td><td class="n">28</td></tr></tbody></table></div>
+</div>
+<div class="card">
+<h2>Individual causes</h2>
+<p class="note">The individual cause values, ranked by total rider impact. <b>Per incident</b> is the average harm each occurrence does, so a rare cause with a high figure here is still worth attention. Values marked <em>legacy text</em> come from the free-text field the City used before 2025; the rest are codes from the published list.</p>
+<div class="scroll"><table><thead><tr><th>Cause</th><th>Code</th><th>Category</th><th>Source</th><th>Incidents</th><th>Avg gap</th><th>Worst gap</th><th>Per incident</th><th>Rider impact</th><th>% of total</th></tr></thead><tbody><tr><td class="">MECHANICAL</td><td class="">nan</td><td class="">Mechanical</td><td class=""><span class="pill mute">legacy text</span></td><td class="n">19,445</td><td class="n">25.8</td><td class="n">999</td><td class="n">350</td><td class="n">4,781,168</td><td class="n">11.85%</td></tr><tr><td class="">DIVERSION</td><td class="">nan</td><td class="">External (weather, traffic, events)</td><td class=""><span class="pill mute">legacy text</span></td><td class="n">12,502</td><td class="n">29.0</td><td class="n">999</td><td class="n">483</td><td class="n">4,164,947</td><td class="n">10.33%</td></tr><tr><td class="">ON DIVERSION</td><td class="">MFDV</td><td class="">External (weather, traffic, events)</td><td class=""><span class="pill ok">code</span></td><td class="n">10,117</td><td class="n">28.8</td><td class="n">999</td><td class="n">475</td><td class="n">3,364,610</td><td class="n">8.34%</td></tr><tr><td class="">OPERATIONS - OPERATOR</td><td class="">nan</td><td class="">Operator &amp; scheduling</td><td class=""><span class="pill mute">legacy text</span></td><td class="n">25,436</td><td class="n">18.9</td><td class="n">999</td><td class="n">142</td><td class="n">2,513,622</td><td class="n">6.23%</td></tr><tr><td class="">WEATHER RELATED</td><td class="">MFWEA</td><td class="">External (weather, traffic, events)</td><td class=""><span class="pill ok">code</span></td><td class="n">6,656</td><td class="n">28.9</td><td class="n">999</td><td class="n">468</td><td class="n">2,194,738</td><td class="n">5.44%</td></tr><tr><td class="">UTILIZED OFF ROUTE</td><td class="">nan</td><td class="">External (weather, traffic, events)</td><td class=""><span class="pill mute">legacy text</span></td><td class="n">6,156</td><td class="n">29.9</td><td class="n">999</td><td class="n">503</td><td class="n">2,174,601</td><td class="n">5.39%</td></tr><tr><td class="">HELD BY</td><td class="">nan</td><td class="">External (weather, traffic, events)</td><td class=""><span class="pill mute">legacy text</span></td><td class="n">6,188</td><td class="n">29.7</td><td class="n">999</td><td class="n">499</td><td class="n">2,153,602</td><td class="n">5.34%</td></tr><tr><td class="">COLLISION - TTC</td><td class="">nan</td><td class="">Collisions</td><td class=""><span class="pill mute">legacy text</span></td><td class="n">2,884</td><td class="n">35.2</td><td class="n">999</td><td class="n">825</td><td class="n">1,664,622</td><td class="n">4.13%</td></tr><tr><td class="">UNABLE TO MAINTAIN SCHEDULE</td><td class="">MFUS</td><td class="">Operator &amp; scheduling</td><td class=""><span class="pill ok">code</span></td><td class="n">15,087</td><td class="n">18.7</td><td class="n">999</td><td class="n">137</td><td class="n">1,456,939</td><td class="n">3.61%</td></tr><tr><td class="">LATE LEAVING GARAGE</td><td class="">nan</td><td class="">Operator &amp; scheduling</td><td class=""><span class="pill mute">legacy text</span></td><td class="n">12,660</td><td class="n">18.5</td><td class="n">999</td><td class="n">135</td><td class="n">1,181,893</td><td class="n">2.93%</td></tr><tr><td class="">ROAD BLOCKED - NON-TTC COLLISION</td><td class="">nan</td><td class="">Collisions</td><td class=""><span class="pill mute">legacy text</span></td><td class="n">1,836</td><td class="n">37.0</td><td class="n">252</td><td class="n">906</td><td class="n">1,180,543</td><td class="n">2.93%</td></tr><tr><td class="">PROPULSION</td><td class="">EFP</td><td class="">Mechanical</td><td class=""><span class="pill ok">code</span></td><td class="n">4,339</td><td class="n">25.2</td><td class="n">139</td><td class="n">346</td><td class="n">1,058,586</td><td class="n">2.62%</td></tr><tr><td class="">TTC COLLISION - PROPERTY DAMAGE</td><td class="">TFPD</td><td class="">Collisions</td><td class=""><span class="pill ok">code</span></td><td class="n">1,580</td><td class="n">37.4</td><td class="n">999</td><td class="n">933</td><td class="n">1,037,031</td><td class="n">2.57%</td></tr><tr><td class="">GENERAL DELAY</td><td class="">nan</td><td class="">Unclassified</td><td class=""><span class="pill mute">legacy text</span></td><td class="n">8,841</td><td class="n">19.9</td><td class="n">999</td><td class="n">167</td><td class="n">1,030,809</td><td class="n">2.56%</td></tr><tr><td class="">DOORS</td><td class="">EFD</td><td class="">Mechanical</td><td class=""><span class="pill ok">code</span></td><td class="n">3,774</td><td class="n">24.8</td><td class="n">173</td><td class="n">342</td><td class="n">898,186</td><td class="n">2.23%</td></tr><tr><td class="">OTHER</td><td class="">EFO</td><td class="">Mechanical</td><td class=""><span class="pill ok">code</span></td><td class="n">2,929</td><td class="n">26.3</td><td class="n">999</td><td class="n">363</td><td class="n">742,012</td><td class="n">1.84%</td></tr><tr><td class="">LATE VEHICLE - ROUTE</td><td class="">TFLL</td><td class="">Operator &amp; scheduling</td><td class=""><span class="pill ok">code</span></td><td class="n">6,840</td><td class="n">18.1</td><td class="n">999</td><td class="n">127</td><td class="n">608,197</td><td class="n">1.51%</td></tr><tr><td class="">COLLISION/PERSONAL INJURY - TTC NOT INVOLVED</td><td class="">MFPI</td><td class="">Collisions</td><td class=""><span class="pill ok">code</span></td><td class="n">1,041</td><td class="n">36.9</td><td class="n">999</td><td class="n">830</td><td class="n">601,360</td><td class="n">1.49%</td></tr><tr><td class="">HEAT / VENT / AC</td><td class="">EFHVA</td><td class="">Mechanical</td><td class=""><span class="pill ok">code</span></td><td class="n">2,202</td><td class="n">25.5</td><td class="n">999</td><td class="n">359</td><td class="n">568,364</td><td class="n">1.41%</td></tr><tr><td class="">OTHER</td><td class="">MFO</td><td class="">Unclassified</td><td class=""><span class="pill ok">code</span></td><td class="n">4,412</td><td class="n">19.9</td><td class="n">999</td><td class="n">171</td><td class="n">520,702</td><td class="n">1.29%</td></tr><tr><td class="">EMERGENCY SERVICES</td><td class="">nan</td><td class="">Passenger incidents</td><td class=""><span class="pill mute">legacy text</span></td><td class="n">6,313</td><td class="n">17.7</td><td class="n">999</td><td class="n">116</td><td class="n">514,872</td><td class="n">1.28%</td></tr><tr><td class="">HELD BY PARADES/MARCHES</td><td class="">MFPR</td><td class="">External (weather, traffic, events)</td><td class=""><span class="pill ok">code</span></td><td class="n">1,636</td><td class="n">28.3</td><td class="n">146</td><td class="n">454</td><td class="n">513,206</td><td class="n">1.27%</td></tr><tr><td class="">FIRE / SMOKE</td><td class="">MFS</td><td class="">External (weather, traffic, events)</td><td class=""><span class="pill ok">code</span></td><td class="n">1,661</td><td class="n">27.6</td><td class="n">138</td><td class="n">422</td><td class="n">485,945</td><td class="n">1.20%</td></tr><tr><td class="">INVESTIGATION</td><td class="">nan</td><td class="">Security</td><td class=""><span class="pill mute">legacy text</span></td><td class="n">2,680</td><td class="n">21.9</td><td class="n">114</td><td class="n">247</td><td class="n">467,918</td><td class="n">1.16%</td></tr><tr><td class="">VISION</td><td class="">nan</td><td class="">Mechanical</td><td class=""><span class="pill mute">legacy text</span></td><td class="n">1,900</td><td class="n">25.5</td><td class="n">146</td><td class="n">348</td><td class="n">460,568</td><td class="n">1.14%</td></tr></tbody></table></div>
+<p class="note" style="margin-top:14px">Showing the top 25 of 51 distinct cause values.</p>
+</div>
+<footer>
+<b>Source.</b> City of Toronto Open Data, TTC Bus Delay Data, used under the
+Open Government Licence &ndash; Toronto. Independent analysis; not affiliated
+with or endorsed by the TTC.<br>
+<b>Method.</b> The published files are reconciled into one table and analysed in
+SQL; these pages are generated from the result and rebuild monthly. Last built
+2026-08-23T05:42:21. Figures marked <em>estimated</em> rest on an assumption about
+boarding rates, set out on the <a href="methodology.html">method</a> page.
+</footer>
+</div></body></html>

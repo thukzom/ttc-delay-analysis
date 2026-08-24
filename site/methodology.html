@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Method — Why Is My Bus Late?</title>
+<meta name="description" content="An analysis of TTC bus delays measured as the
+waiting time riders actually experience, not how late the vehicles were.">
+<meta name="color-scheme" content="light dark">
+<style>
+/* ===========================================================================
+   Transit editorial.
+
+   Three typefaces doing three different jobs, which is what keeps this from
+   looking like a default dashboard:
+
+     serif      prose and headlines - editorial, meant to be read
+     condensed  labels, kickers, nav, table headers - transit signage
+     monospace  every number, always tabular - timetable
+
+   Layout is ruled, not boxed: 2px ink rules open each block instead of rounded
+   cards on a tinted ground. Colour is ink-on-paper with a single signal red
+   used only for emphasis; the chart series palette is separate and validated
+   for colour-vision deficiency against both surfaces below.
+   =========================================================================== */
+
+:root{
+  --paper:#ffffff;
+  --band:#f2efe7;
+  --ink:#141412;
+  --ink-2:#55534b;
+  --ink-3:#8b887e;
+  --hair:rgba(20,20,18,.15);
+  --rule:#141412;
+  --signal:#c8241c;
+  --masthead:#141412;
+  --masthead-ink:#f5f2ea;
+
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300;
+  --good:#0ca30c; --warn:#b07800; --crit:#c8241c;
+
+  --f-serif:Georgia,"Iowan Old Style","Palatino Linotype",Palatino,
+            "Times New Roman",serif;
+  --f-cond:"Arial Narrow","Helvetica Neue Condensed",
+           "Roboto Condensed",Helvetica,Arial,sans-serif;
+  --f-sans:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;
+  --f-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:where(:not([data-theme="light"])){
+    --paper:#101010;
+    --band:#1a1a18;
+    --ink:#f2efe7;
+    --ink-2:#b5b2a8;
+    --ink-3:#7c7a71;
+    --hair:rgba(242,239,231,.18);
+    --rule:#f2efe7;
+    --signal:#ff5b45;
+    --masthead:#000000;
+    --masthead-ink:#f5f2ea;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --s5:#d55181; --s6:#008300;
+    --good:#0ca30c; --warn:#c98500; --crit:#ff5b45;
+    color-scheme:dark;
+  }
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:16px/1.65 var(--f-serif);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:underline;text-decoration-color:var(--signal);
+  text-underline-offset:3px;text-decoration-thickness:1.5px}
+a:hover{color:var(--signal)}
+
+.wrap{max-width:1080px;margin:0 auto;padding:0 26px 96px}
+
+/* ---- masthead ---------------------------------------------------------- */
+.masthead{background:var(--masthead);color:var(--masthead-ink);
+  border-bottom:3px solid var(--signal)}
+.masthead .inner{max-width:1080px;margin:0 auto;padding:0 26px;
+  display:flex;align-items:stretch;flex-wrap:wrap;gap:0;min-height:56px}
+.brand{font-family:var(--f-cond);font-weight:700;text-transform:uppercase;
+  letter-spacing:.14em;font-size:15px;display:flex;align-items:center;
+  padding-right:26px;margin-right:auto;white-space:nowrap}
+.brand em{font-style:normal;color:var(--signal)}
+.masthead nav{display:flex;align-items:stretch}
+.masthead nav a{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.12em;font-size:12.5px;text-decoration:none;
+  display:flex;align-items:center;padding:0 15px;color:var(--masthead-ink);
+  opacity:.72;border-bottom:3px solid transparent;margin-bottom:-3px}
+.masthead nav a:hover{opacity:1;color:var(--masthead-ink)}
+.masthead nav a.on{opacity:1;border-bottom-color:var(--signal);font-weight:700}
+@media(max-width:620px){
+  .masthead .inner{padding:0 16px}
+  .brand{width:100%;padding:12px 0 6px}
+  .masthead nav{flex-wrap:wrap;padding-bottom:2px}
+  .masthead nav a{padding:8px 13px 8px 0}
+}
+
+/* ---- notice ------------------------------------------------------------ */
+.banner{border-left:4px solid var(--signal);background:var(--band);
+  padding:14px 18px;margin:26px 0 0;font-size:14.5px;line-height:1.55}
+.banner b{font-weight:700}
+
+/* ---- page head --------------------------------------------------------- */
+header.page{padding:44px 0 30px;border-bottom:2px solid var(--rule);
+  margin-bottom:34px}
+.kicker{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.18em;font-size:12px;color:var(--signal);font-weight:700;
+  margin:0 0 14px}
+h1{font-family:var(--f-serif);font-size:clamp(34px,5.2vw,52px);font-weight:400;
+  line-height:1.06;letter-spacing:-.02em;margin:0 0 18px;max-width:19ch}
+.lede{font-size:18.5px;line-height:1.6;color:var(--ink-2);max-width:60ch;
+  margin:0}
+.meta{font-family:var(--f-mono);font-size:12px;color:var(--ink-3);
+  margin-top:24px;line-height:1.95;letter-spacing:-.01em;max-width:86ch;
+  border-top:1px solid var(--hair);padding-top:16px}
+
+/* ---- blocks ------------------------------------------------------------ */
+.card{border-top:2px solid var(--rule);padding:22px 0 30px;margin:0 0 6px}
+/* the page header already closes with a rule; don't double it */
+header.page + .card{border-top:none;padding-top:2px}
+header.page + .grid2 > .card:first-child{border-top:none;padding-top:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 44px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr;gap:0}}
+
+h2{font-family:var(--f-cond);text-transform:uppercase;letter-spacing:.14em;
+  font-size:13.5px;font-weight:700;margin:0 0 12px;color:var(--ink)}
+h3{font-family:var(--f-cond);text-transform:uppercase;letter-spacing:.12em;
+  font-size:12px;font-weight:700;margin:30px 0 10px;color:var(--ink-3)}
+.note{font-size:15.5px;line-height:1.62;color:var(--ink-2);margin:0 0 22px;
+  max-width:66ch}
+.note b{color:var(--ink);font-weight:700}
+
+/* ---- departure board (hero stats) -------------------------------------- */
+.board{background:var(--masthead);color:var(--masthead-ink);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  margin:0 0 34px;border-top:3px solid var(--signal)}
+.board .tile{padding:19px 17px 21px;border-right:1px solid rgba(245,242,234,.16);
+  border-bottom:1px solid rgba(245,242,234,.16)}
+.board .label{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.13em;font-size:10.5px;opacity:.66;margin-bottom:12px;
+  line-height:1.4;min-height:4.2em}
+.board .value{font-family:var(--f-mono);font-size:31px;font-weight:600;
+  letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums;
+  color:#fff}
+.board .foot{font-size:12.5px;opacity:.6;margin-top:11px;line-height:1.45;
+  font-family:var(--f-sans)}
+
+/* ---- plain stat row ---------------------------------------------------- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  border-top:1px solid var(--hair);margin:0 0 28px}
+.tiles .tile{padding:16px 18px 18px;border-bottom:1px solid var(--hair);
+  border-right:1px solid var(--hair)}
+.tiles .label{font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.13em;font-size:10.5px;color:var(--ink-3);margin-bottom:10px;
+  line-height:1.4;min-height:4.2em}
+.tiles .value{font-family:var(--f-mono);font-size:24px;font-weight:600;
+  letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.tiles .foot{font-family:var(--f-sans);font-size:12px;color:var(--ink-3);
+  margin-top:9px;line-height:1.45}
+
+/* ---- charts ------------------------------------------------------------ */
+svg{display:block;width:100%;height:auto;overflow:visible}
+.gl{stroke:var(--hair);stroke-width:1}
+.ax{stroke:var(--ink-3);stroke-width:1}
+.tk{fill:var(--ink-3);font-size:11px;font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.dl{fill:var(--ink);font-size:11.5px;font-weight:600;font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.al{fill:var(--ink-2);font-size:12.5px;font-family:var(--f-sans)}
+.bar{transition:opacity .12s}
+.bar:hover{opacity:.7}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin:0 0 16px;
+  font-family:var(--f-sans);font-size:12px;color:var(--ink-2)}
+.legend span{display:flex;align-items:center;gap:8px}
+.sw{width:13px;height:13px;flex:none}
+
+/* ---- tables ------------------------------------------------------------ */
+table{width:100%;border-collapse:collapse;font-family:var(--f-sans);
+  font-size:13px}
+th{text-align:left;font-family:var(--f-cond);font-weight:700;color:var(--ink);
+  font-size:11px;text-transform:uppercase;letter-spacing:.11em;
+  padding:9px 9px;border-bottom:2px solid var(--rule);white-space:nowrap;
+  background:var(--paper)}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--signal)}
+th .arrow{opacity:.3;margin-left:3px;font-size:9px}
+th.active{color:var(--signal)}
+th.active .arrow{opacity:1}
+td{padding:8px 9px;border-bottom:1px solid var(--hair);vertical-align:baseline}
+td.n{text-align:right;font-family:var(--f-mono);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+td.nw{white-space:nowrap}
+tbody tr:hover{background:var(--band)}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* route number blade, after the signage on a bus stop pole */
+.blade{display:inline-block;background:var(--rule);color:var(--paper);
+  font-family:var(--f-cond);font-weight:700;letter-spacing:.06em;
+  font-size:11.5px;padding:2px 6px;margin-right:8px;min-width:30px;
+  text-align:center;vertical-align:1px}
+
+.pill{display:inline-block;padding:2px 8px;font-family:var(--f-cond);
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  border:1px solid;white-space:nowrap}
+.pill.ok{color:var(--good);border-color:var(--good)}
+.pill.warn{color:var(--warn);border-color:var(--warn)}
+.pill.bad{color:var(--crit);border-color:var(--crit)}
+.pill.mute{color:var(--ink-3);border-color:var(--hair)}
+
+/* ---- controls ---------------------------------------------------------- */
+input[type=search]{width:100%;max-width:300px;padding:9px 12px;font-size:14px;
+  border:1px solid var(--ink-3);background:var(--paper);color:var(--ink);
+  font-family:var(--f-sans);border-radius:0}
+input[type=search]:focus{outline:2px solid var(--signal);outline-offset:1px;
+  border-color:var(--signal)}
+.controls{display:flex;gap:16px;flex-wrap:wrap;align-items:center;
+  margin-bottom:16px}
+.count{font-family:var(--f-mono);font-size:12px;color:var(--ink-3)}
+
+details{margin-top:20px;border-top:1px solid var(--hair);padding-top:6px}
+summary{cursor:pointer;font-family:var(--f-cond);text-transform:uppercase;
+  letter-spacing:.12em;font-size:11.5px;color:var(--ink-3);padding:8px 0;
+  user-select:none;font-weight:700}
+summary:hover{color:var(--signal)}
+details table{margin-top:12px}
+
+/* ---- pull-out finding -------------------------------------------------- */
+.finding{border-left:4px solid var(--signal);padding:4px 0 4px 20px;
+  margin:26px 0}
+.finding h3{font-family:var(--f-serif);text-transform:none;letter-spacing:-.01em;
+  font-size:20px;font-weight:400;line-height:1.25;color:var(--ink);
+  margin:0 0 10px}
+.finding p{margin:0;color:var(--ink-2);font-size:15.5px;line-height:1.62;
+  max-width:64ch}
+.finding em{font-style:italic}
+
+ul.note{padding-left:20px}
+ul.note li{margin-bottom:9px}
+
+footer{border-top:2px solid var(--rule);margin-top:56px;padding-top:22px;
+  font-family:var(--f-sans);font-size:12.5px;color:var(--ink-3);
+  line-height:1.75;max-width:78ch}
+
+code{font-family:var(--f-mono);font-size:.88em;background:var(--band);
+  padding:2px 5px;letter-spacing:-.02em}
+.board code,.masthead code{background:rgba(255,255,255,.14)}
+
+/* ---- heatmap ramp ------------------------------------------------------ */
+.hm-na{fill:var(--hair)}
+.hm-0{fill:#eff5fd}
+.hm-1{fill:#d8e8fb}
+.hm-2{fill:#c1dbf8}
+.hm-3{fill:#a9cdf5}
+.hm-4{fill:#91bff1}
+.hm-5{fill:#78b0ed}
+.hm-6{fill:#5fa1e8}
+.hm-7{fill:#4691e2}
+.hm-8{fill:#2f80d9}
+.hm-9{fill:#1f6ec2}
+.hm-10{fill:#155aa4}
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){}
+  :root:where(:not([data-theme="light"])) .hm-0{fill:#16202b} :root:where(:not([data-theme="light"])) .hm-1{fill:#1a2a3b} :root:where(:not([data-theme="light"])) .hm-2{fill:#1d354c} :root:where(:not([data-theme="light"])) .hm-3{fill:#20405e} :root:where(:not([data-theme="light"])) .hm-4{fill:#224b70} :root:where(:not([data-theme="light"])) .hm-5{fill:#245683} :root:where(:not([data-theme="light"])) .hm-6{fill:#256296} :root:where(:not([data-theme="light"])) .hm-7{fill:#256ea9} :root:where(:not([data-theme="light"])) .hm-8{fill:#2d7bbb} :root:where(:not([data-theme="light"])) .hm-9{fill:#4189cc} :root:where(:not([data-theme="light"])) .hm-10{fill:#5d98d9}
+}
+</style></head><body>
+<div class="masthead"><div class="inner"><span class="brand"><span>Why Is My Bus <em>Late</em>?</span></span><nav><a href="index.html" class="">Overview</a><a href="routes.html" class="">Routes</a><a href="causes.html" class="">Causes</a><a href="when.html" class="">When</a><a href="methodology.html" class="on">Method</a></nav></div></div>
+<div class="wrap">
+<div class="banner"><b>Placeholder build.</b> This page was generated without the published TTC files, so the figures below stand in for the real ones and should <b>not</b> be read as findings about the TTC.</div>
+<header class="page">
+<p class="kicker">Appendix &middot; How this was built</p>
+<h1>Method</h1>
+<p class="lede">How I got from the City’s raw files to the numbers on the
+other pages, what I had to assume along the way, and the places I think this is
+weakest. I would rather set all of that out than have someone find it
+themselves.</p>
+</header>
+<div class="card">
+<h2>The shape of it</h2>
+<p class="note">The City publishes one file per year. I download them straight from the open data portal, reconcile them into a single table, load that into a SQLite database, and do the actual analysis in SQL &mdash; staging, then a headway model, then a fact table, then the summaries each page reads from. These pages are generated from those summaries, so nothing here is typed in by hand and nothing can drift out of step with the data. The whole thing rebuilds itself monthly, which is roughly how often the City refreshes the dataset.</p>
+<div class="finding"><h3>The files change shape partway through, which was the first real problem</h3><p>Everything up to 2024 uses one set of column names &mdash; <em>Report Date</em>, <em>Route</em>, <em>Location</em>, <em>Incident</em>. From 2025 the same fields are called <em>Date</em>, <em>Line</em>, <em>Station</em> and <em>Code</em>, and the cause field changes from free text to a lookup code. Any analysis spanning both has to reconcile them, and doing it sloppily is the easiest way to end up confidently wrong. I match every column against an explicit list of names I have actually seen, and the loader stops with an error rather than guessing if it meets something new.</p></div>
+</div>
+<div class="card">
+<h2>Measuring the wait</h2>
+<p class="note">On a frequent route most people turn up without checking a schedule, so arrivals are effectively spread evenly through time. During a gap of <em>G</em> minutes the average person waits <em>G/2</em>; on a normal headway <em>H</em> they would have waited <em>H/2</em>. So:</p>
+<p class="note"><b>Extra wait per affected rider = (G &minus; H) / 2</b><br>And because people keep arriving for the whole length of the gap, the number affected grows with <em>G</em> too. Total harm therefore scales as <b>G &times; (G &minus; H) / 2</b>, which is the <em>rider impact index</em> used throughout the site.</p>
+<div class="finding"><h3>Where H comes from, given the data contains no schedule</h3><p>This held me up for a while. To talk about waiting you need to know how often the bus is supposed to come, and the delay files do not say. But it is already in there: if buses run every <em>H</em> minutes and one runs <em>D</em> minutes late, the gap it leaves behind is <em>H + D</em>. Both of those are published, so <b>H = Min Gap &minus; Min Delay</b>, taken as the median for each route and time of day. I tested this against a set of known headways before trusting it and it recovers the right answer to within about half a minute.</p></div>
+</div>
+<div class="card">
+<h2>What I had to assume</h2>
+<p class="note">Each of these could be wrong, and each would move the numbers in a different way.</p>
+<div class="scroll"><table><thead><tr><th>Assumption</th><th>Where it stands</th><th>If I am wrong about it</th></tr></thead><tbody><tr><td class="">People arrive without checking a schedule</td><td class=""><span class="pill ok">holds on frequent routes</span></td><td class="">Overstates the wait on infrequent routes, where people time their arrival to the timetable. The overnight figures are most exposed.</td></tr><tr><td class="">Headway derived from the gap minus the delay</td><td class=""><span class="pill ok">100% derived</span></td><td class="">Tested to within half a minute against known values. Routes where I had to fall back to an assumption are flagged in the scorecard.</td></tr><tr><td class="">Gaps capped at 180 minutes before measuring impact</td><td class=""><span class="pill warn">my judgement</span></td><td class="">Without the cap, 106 placeholder records (0.12% of rows) carried 56% of all impact. A higher cap lets outliers back in; a lower one starts clipping real disruptions.</td></tr><tr><td class="">Boardings per minute, used only for the estimated-hours figure</td><td class=""><span class="pill bad">an assumption</span></td><td class="">Scales that one figure and nothing else. Every ranking on this site is unaffected, which is why I rank on the index and label the hours separately.</td></tr><tr><td class="">Two cause vocabularies map onto one set of categories</td><td class=""><span class="pill ok">7.9% unmapped</span></td><td class="">Anything that does not map lands in Unclassified and is reported rather than quietly absorbed. A rising share would mean the categories need revisiting.</td></tr></tbody></table></div>
+</div>
+<div class="card">
+<h2>How good the data is</h2>
+<p class="note">Reconciling the two file layouts is the riskiest step here, so I measure it rather than assume it went well.</p>
+<div class="tiles"><div class="tile"><div class="label">Records loaded</div><div class="value">196.3k</div><div class="foot">from 3 published files</div></div><div class="tile"><div class="label">Usable</div><div class="value">99.9%</div><div class="foot">internally consistent</div></div><div class="tile"><div class="label">Causes unmapped</div><div class="value">7.9%</div><div class="foot">land in Unclassified</div></div><div class="tile"><div class="label">Headways derived</div><div class="value">100%</div><div class="foot">rather than assumed</div></div><div class="tile"><div class="label">Gaps capped</div><div class="value">0.12%</div><div class="foot">at 180 minutes</div></div><div class="tile"><div class="label">Implausible rows</div><div class="value">0.08%</div><div class="foot">flagged and left out of headlines</div></div></div>
+<div class="scroll"><table><thead><tr><th>File</th><th>Layout</th><th>Rows</th><th>From</th><th>To</th><th>Routes</th><th>Usable</th><th>Unmapped</th><th>Placeholder gaps</th></tr></thead><tbody><tr><td class=""><code>sample_ttc_bus_delay_2023.csv</code></td><td class=""><span class="pill mute">legacy</span></td><td class="n">53,832</td><td class="">2023-01-01</td><td class="">2023-12-31</td><td class="n">28</td><td class="n">99.9%</td><td class="n">8.2%</td><td class="n">26</td></tr><tr><td class=""><code>sample_ttc_bus_delay_2024.csv</code></td><td class=""><span class="pill mute">legacy</span></td><td class="n">55,832</td><td class="">2024-01-01</td><td class="">2024-12-31</td><td class="n">28</td><td class="n">99.9%</td><td class="n">7.9%</td><td class="n">38</td></tr><tr><td class=""><code>sample_ttc_bus_delay_since_2025.csv</code></td><td class=""><span class="pill ok">current</span></td><td class="n">86,631</td><td class="">2025-01-01</td><td class="">2026-06-30</td><td class="n">28</td><td class="n">99.9%</td><td class="n">7.7%</td><td class="n">42</td></tr></tbody></table></div>
+</div>
+<div class="card">
+<h2>The mistake that nearly got past me</h2>
+<div class="finding"><h3>A hundred rows were driving more than half the answer</h3><p>Because impact grows with the square of the gap, it is very sensitive to a long tail, and this dataset has one. My first version let the raw gaps through untouched, and around a hundred records carrying a value of exactly 999 minutes ended up outweighing every genuine incident in the file combined. On a route running every four minutes that value would mean 250 buses in a row failed to show up, so it is a placeholder, not a measurement. Nothing internal caught it &mdash; every table reconciled perfectly and the arithmetic was right the whole way through. What caught it was asking how much of the answer rested on how few rows. Gaps are now capped at 180 minutes, just above the 99.9th percentile of real service gaps, and the build now stops if any single incident accounts for more than 2% of the total.</p></div>
+</div>
+<div class="card">
+<h2>Confidence in the headway estimates</h2>
+<p class="note">Each route gets its own headway for each part of the day. Where there were too few records to estimate one, I fall back to the route's overall median and then to a fixed default, and mark it so those routes can be discounted.</p>
+<svg viewBox="0 0 900 40" role="img"><text class="al" x="178" y="21" text-anchor="end">band estimate</text><rect class="bar" x="190" y="9" width="614.0" height="18" rx="4" fill="var(--s3)"><title>band estimate: 140 bands</title></rect><text class="dl" x="813.0" y="22.5">140 bands</text></svg>
+<p class="note" style="margin-top:14px">The derived estimates run from 4 to 66 minutes, with a median of 8.</p>
+</div>
+<div class="card">
+<h2>What this does not tell you</h2>
+<ul class="note">
+<li>These are <em>logged incidents</em>, not a record of all service. A route
+with nothing logged is not necessarily reliable; it may just be logged less
+consistently.</li>
+<li>There is no ridership in this data, so rider impact is an index proportional
+to passenger-minutes rather than a count of them. The rankings are unaffected;
+the figures given in hours are estimates and labelled as such.</li>
+<li>Headway is inferred rather than read from a timetable. Joining the TTC
+schedule feed would replace my biggest inference with a fact, and it is the
+first thing I would add.</li>
+<li>Location is free text and only lightly cleaned, so the hotspots are
+indicative.</li>
+<li>Causes are recorded by staff at the time, with all the inconsistency that
+implies.</li>
+<li>No weather data is joined yet, so anything seasonal here is inferred from
+the calendar and the mix of causes, not from observed conditions.</li>
+</ul>
+</div>
+<footer>
+<b>Source.</b> City of Toronto Open Data, TTC Bus Delay Data, used under the
+Open Government Licence &ndash; Toronto. Independent analysis; not affiliated
+with or endorsed by the TTC.<br>
+<b>Method.</b> The published files are reconciled into one table and analysed in
+SQL; these pages are generated from the result and rebuild monthly. Last built
+2026-08-23T05:42:21. Figures marked <em>estimated</em> rest on an assumption about
+boarding rates, set out on the <a href="methodology.html">method</a> page.
+</footer>
+</div></body></html>
