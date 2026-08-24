@@ -17,7 +17,7 @@ on:
       since:
         description: "Earliest year of data to download"
         required: false
-        default: "2018"
+        default: "2025"
 
 permissions:
   contents: read
@@ -46,7 +46,7 @@ jobs:
         run: python -m unittest discover -s tests -t . -v
 
       - name: Download the data
-        run: python -m src.fetch --since ${{ github.event.inputs.since || '2018' }}
+        run: python -m src.fetch --since ${{ github.event.inputs.since || '2025' }}
 
       - name: Build the warehouse
         run: python -m src.load
