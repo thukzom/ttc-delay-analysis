@@ -729,10 +729,13 @@ themselves.</p>
           "had to fall back to an assumption are flagged in the scorecard."],
          [f"Gaps capped at {GAP_CAP_MINUTES} minutes before measuring impact",
           '<span class="pill warn">my judgement</span>',
-          f"Without the cap, {int(dq.gap_sentinel_values):,} placeholder records "
-          f"({dq.pct_gaps_winsorised:.2f}% of rows) carried "
-          f"{dq.pct_impact_removed_by_cap:.0f}% of all impact. A higher cap lets "
-          "outliers back in; a lower one starts clipping real disruptions."],
+          f"{dq.pct_gaps_winsorised:.2f}% of gaps sit above that line and get "
+          f"capped, and doing so removes {dq.pct_impact_removed_by_cap:.0f}% of "
+          "the raw total &mdash; so the cap genuinely drives the headline. "
+          f"{int(dq.gap_sentinel_values):,} of those records hold obvious "
+          "placeholder values; the rest are a mix of real long disruptions and "
+          "routes that simply stopped running. A higher cap lets the extremes "
+          "dominate again; a lower one clips real disruptions."],
          ["Boardings per minute, used only for the estimated-hours figure",
           '<span class="pill bad">an assumption</span>',
           "Scales that one figure and nothing else. Every ranking on this site "

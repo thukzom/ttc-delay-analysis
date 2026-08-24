@@ -33,7 +33,19 @@
 DROP TABLE IF EXISTS int_route_headway;
 
 CREATE TABLE int_route_headway AS
-WITH observations AS (
+WITH
+-- Every route and time band that actually appears in the data. Starting from
+-- this rather than from the observations guarantees a headway row exists for
+-- each one; building only from observations left any route-band whose
+-- incidents all had a zero delay or gap with no headway at all, and those
+-- incidents then had nothing to measure their wait against.
+route_bands AS (
+    SELECT DISTINCT route_number, time_band
+    FROM stg_incidents
+    WHERE is_analysable = 1
+),
+
+observations AS (
     SELECT
         route_number,
         time_band,
@@ -92,9 +104,9 @@ spread AS (
 )
 
 SELECT
-    m.route_number,
-    m.time_band,
-    m.n_observations,
+    rb.route_number,
+    rb.time_band,
+    COALESCE(m.n_observations, 0)                       AS n_observations,
     ROUND(m.median_headway, 2)                          AS raw_median_headway_min,
     ROUND(r.route_median_headway, 2)                    AS route_fallback_headway_min,
     s.range_min                                         AS observation_range_min,
@@ -102,12 +114,12 @@ SELECT
     -- The value downstream marts actually use.
     ROUND(
         CASE
-            WHEN m.n_observations >= {{MIN_INCIDENTS_FOR_HEADWAY}}
-             AND m.median_headway BETWEEN {{MIN_PLAUSIBLE_HEADWAY_MIN}}
+            WHEN COALESCE(m.n_observations, 0) >= {{MIN_INCIDENTS_FOR_HEADWAY}}
+             AND COALESCE(m.median_headway, -1) BETWEEN {{MIN_PLAUSIBLE_HEADWAY_MIN}}
                                       AND {{MAX_PLAUSIBLE_HEADWAY_MIN}}
                 THEN m.median_headway
-            WHEN r.route_observations >= {{MIN_INCIDENTS_FOR_HEADWAY}}
-             AND r.route_median_headway BETWEEN {{MIN_PLAUSIBLE_HEADWAY_MIN}}
+            WHEN COALESCE(r.route_observations, 0) >= {{MIN_INCIDENTS_FOR_HEADWAY}}
+             AND COALESCE(r.route_median_headway, -1) BETWEEN {{MIN_PLAUSIBLE_HEADWAY_MIN}}
                                             AND {{MAX_PLAUSIBLE_HEADWAY_MIN}}
                 THEN r.route_median_headway
             ELSE {{FALLBACK_HEADWAY_MIN}}
@@ -115,18 +127,21 @@ SELECT
     , 2)                                                AS headway_min,
 
     CASE
-        WHEN m.n_observations >= {{MIN_INCIDENTS_FOR_HEADWAY}}
-         AND m.median_headway BETWEEN {{MIN_PLAUSIBLE_HEADWAY_MIN}}
+        WHEN COALESCE(m.n_observations, 0) >= {{MIN_INCIDENTS_FOR_HEADWAY}}
+         AND COALESCE(m.median_headway, -1) BETWEEN {{MIN_PLAUSIBLE_HEADWAY_MIN}}
                                   AND {{MAX_PLAUSIBLE_HEADWAY_MIN}}
             THEN 'band_estimate'
-        WHEN r.route_observations >= {{MIN_INCIDENTS_FOR_HEADWAY}}
-         AND r.route_median_headway BETWEEN {{MIN_PLAUSIBLE_HEADWAY_MIN}}
+        WHEN COALESCE(r.route_observations, 0) >= {{MIN_INCIDENTS_FOR_HEADWAY}}
+         AND COALESCE(r.route_median_headway, -1) BETWEEN {{MIN_PLAUSIBLE_HEADWAY_MIN}}
                                         AND {{MAX_PLAUSIBLE_HEADWAY_MIN}}
             THEN 'route_estimate'
         ELSE 'default_assumed'
     END                                                 AS headway_source
-FROM medians m
-JOIN route_level r ON r.route_number = m.route_number
-LEFT JOIN spread s ON s.route_number = m.route_number AND s.time_band = m.time_band;
+FROM route_bands rb
+LEFT JOIN medians    m ON m.route_number = rb.route_number
+                      AND m.time_band    = rb.time_band
+LEFT JOIN route_level r ON r.route_number = rb.route_number
+LEFT JOIN spread      s ON s.route_number = rb.route_number
+                      AND s.time_band    = rb.time_band;
 
 CREATE UNIQUE INDEX idx_headway_pk ON int_route_headway (route_number, time_band);

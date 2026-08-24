@@ -494,6 +494,20 @@ class TestWarehouse(unittest.TestCase):
         for category in rows:
             self.assertIn(category, CAUSE_CATEGORIES)
 
+    def test_every_route_and_band_has_a_headway_row(self):
+        """Structural guarantee behind "no incident lacks a headway".
+
+        The headway table used to be built only from route-bands that had
+        usable observations, so a band whose incidents all had a zero delay or
+        gap got no row and its incidents had nothing to measure against.
+        """
+        combos = self.scalar(
+            "SELECT COUNT(*) FROM (SELECT DISTINCT route_number, time_band "
+            "FROM stg_incidents WHERE is_analysable = 1)"
+        )
+        headways = self.scalar("SELECT COUNT(*) FROM int_route_headway")
+        self.assertEqual(combos, headways)
+
     def test_build_records_its_data_mode(self):
         mode = self.scalar("SELECT data_mode FROM mart_dq_summary")
         self.assertIn(mode, ("real", "sample"))

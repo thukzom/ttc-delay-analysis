@@ -363,6 +363,25 @@ def harmonise() -> dict:
     if not files:
         raise SystemExit(f"No source files found in {RAW_DIR}.")
 
+    # Anything sitting in the raw directory that the glob above did not pick up
+    # is a file that was downloaded and is about to be ignored. That has
+    # happened once already - a resource saved without its extension took the
+    # whole 2025 dataset with it - so it is now an error rather than a silence.
+    present = {
+        q for q in RAW_DIR.glob("*")
+        if q.is_file() and "delay_codes" not in q.name.lower()
+        and "readme" not in q.name.lower()
+    }
+    ignored = sorted(q.name for q in present - set(files))
+    if ignored:
+        raise SystemExit(
+            f"\n{len(ignored)} file(s) in {RAW_DIR} would be ignored because "
+            "the loader does not recognise their extension:\n"
+            + "\n".join(f"    {name}" for name in ignored)
+            + "\n\nThese were downloaded, so skipping them would silently "
+            "drop data."
+        )
+
     code_lookup = load_code_lookup()
     unmapped_causes: Counter = Counter()
     per_file: list[dict] = []

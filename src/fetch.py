@@ -123,10 +123,21 @@ def choose_delay_files(resources: list[dict], since: int | None) -> list[dict]:
 
 
 def _safe_filename(resource: dict) -> str:
+    """Build a safe local filename that KEEPS its extension.
+
+    A resource named "TTC Bus Delay Data since 2025.csv" slugs down to
+    "ttc_bus_delay_data_since_2025_csv". An earlier version of this checked
+    whether the slug already ended in the format and, finding "csv" at the end,
+    saved the file with no extension at all. The loader globs by extension, so
+    the whole 2025 file was downloaded and then silently ignored - taking the
+    entire post-2025 schema with it.
+    """
     name = (resource.get("name") or resource["id"]).strip()
     fmt = (resource.get("format") or "bin").lower()
     slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
-    return f"{slug}.{fmt}" if not slug.endswith(fmt) else slug
+    if slug.endswith("_" + fmt):
+        slug = slug[: -(len(fmt) + 1)]
+    return f"{slug}.{fmt}"
 
 
 def download(resource: dict) -> dict:
