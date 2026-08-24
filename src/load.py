@@ -100,10 +100,39 @@ def read_table(path: Path) -> tuple[list[str], list[list]]:
         except ImportError as exc:  # pragma: no cover
             raise RuntimeError(
                 f"{path.name} is an Excel file; reading it needs pandas and "
-                "openpyxl.  pip install -r requirements.txt"
+                "openpyxl."
             ) from exc
-        frame = pd.read_excel(path, dtype=str)
-        return list(frame.columns), frame.fillna("").astype(str).values.tolist()
+
+        # These workbooks are split into one sheet PER MONTH. Reading only the
+        # first sheet - which is what pandas does by default - silently gives
+        # back January and throws away the other eleven months, and nothing
+        # downstream looks wrong. Every sheet has to be read and stacked.
+        sheets = pd.read_excel(path, dtype=str, sheet_name=None)
+
+        header: list[str] = []
+        rows: list[list] = []
+        skipped: list[str] = []
+
+        for sheet_name, frame in sheets.items():
+            if frame.empty:
+                continue
+            columns = [str(c) for c in frame.columns]
+            if not header:
+                header = columns
+            elif columns != header:
+                # A sheet with a different shape is a notes or summary tab, not
+                # more data. Skip it rather than stacking mismatched columns.
+                skipped.append(str(sheet_name))
+                continue
+            rows.extend(frame.fillna("").astype(str).values.tolist())
+
+        if skipped:
+            print(f"    note: skipped {len(skipped)} sheet(s) in {path.name} "
+                  f"with a different layout: {skipped[:5]}")
+        if len(sheets) > 1:
+            print(f"    combined {len(sheets) - len(skipped)} sheets "
+                  f"from {path.name}")
+        return header, rows
 
     if suffix == ".json":
         payload = json.loads(path.read_text())

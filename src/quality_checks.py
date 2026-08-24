@@ -89,6 +89,25 @@ class QualityChecker:
             f"{rows:,} incidents loaded (minimum {MIN_EXPECTED_ROWS:,})",
         )
 
+        # A file named for a single year should cover most of that year. When
+        # it covers one or two months, the reader has silently taken part of
+        # the file and dropped the rest - which is what happened the first time
+        # this ran against the real workbooks, because they are split into one
+        # sheet per month and only the first was being read.
+        thin = self.conn.execute(
+            "SELECT source_file, months_covered, rows_loaded "
+            "FROM mart_dq_by_file WHERE months_covered <= 2 "
+            "AND rows_loaded > 0"
+        ).fetchall()
+        self.check(
+            "each source file covers a full period", "schema", not thin,
+            "all files span a plausible date range" if not thin else
+            "suspiciously narrow: " + ", ".join(
+                f"{name} ({months} month(s), {count:,} rows)"
+                for name, months, count in thin
+            ),
+        )
+
     # -- harmonisation --------------------------------------------------------
 
     def check_harmonisation(self) -> None:

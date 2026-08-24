@@ -99,6 +99,18 @@ class TestColumnHarmonisation(unittest.TestCase):
         self.assertIn("Columns actually present", message)
         self.assertIn("Foo", message)
 
+    def test_the_unprefixed_2020_column_names_are_recognised(self):
+        """2020 publishes these as "Delay" and "Gap", without the "Min "."""
+        header = [
+            "Report Date", "Route", "Time", "Day", "Location",
+            "Incident", "Delay", "Gap", "Direction", "Vehicle",
+        ]
+        mapping = map_columns(header, Path("2020.xlsx"))
+        for field in REQUIRED_COLUMNS:
+            self.assertIn(field, mapping, field)
+        self.assertEqual(header[mapping["min_delay"]], "Delay")
+        self.assertEqual(header[mapping["min_gap"]], "Gap")
+
     def test_missing_one_column_still_raises(self):
         header = [c for c in CURRENT_HEADER if c != "Min Gap"]
         with self.assertRaises(RuntimeError):
@@ -166,6 +178,59 @@ class TestExcelRoundTrip(unittest.TestCase):
         self.assertEqual(parse_date("41640"), "2014-01-01")
         self.assertEqual(parse_hour("0.09375"), 2)      # time-only fraction
         self.assertEqual(parse_hour("0.5"), 12)
+
+    def test_all_sheets_are_read_not_just_the_first(self):
+        """The workbooks are split one sheet per month.
+
+        pandas reads only the first sheet by default, which silently returns
+        January and discards the other eleven months. Nothing downstream looks
+        wrong when that happens, so it is asserted here.
+        """
+        import datetime as dt
+        import openpyxl
+        import tempfile
+        from src.load import read_table
+
+        workbook = openpyxl.Workbook()
+        first = workbook.active
+        first.title = "January"
+        first.append(LEGACY_HEADER)
+        first.append([dt.datetime(2020, 1, 5), 32, dt.time(8, 0), "Sunday",
+                      "A STATION", "Mechanical", 10, 20, "E", 1111])
+        for month, day in (("February", 2), ("March", 3)):
+            sheet = workbook.create_sheet(month)
+            sheet.append(LEGACY_HEADER)
+            sheet.append([dt.datetime(2020, day, 5), 36, dt.time(9, 0), "Monday",
+                          "B STATION", "Mechanical", 10, 20, "W", 2222])
+        handle = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+        workbook.save(handle.name)
+
+        header, rows = read_table(Path(handle.name))
+        self.assertEqual(header, LEGACY_HEADER)
+        self.assertEqual(len(rows), 3, "all three monthly sheets must be read")
+
+    def test_a_sheet_with_a_different_layout_is_skipped(self):
+        """Notes and summary tabs must not be stacked in as if they were data."""
+        import datetime as dt
+        import openpyxl
+        import tempfile
+        from src.load import read_table
+
+        workbook = openpyxl.Workbook()
+        data = workbook.active
+        data.title = "Data"
+        data.append(LEGACY_HEADER)
+        data.append([dt.datetime(2020, 1, 5), 32, dt.time(8, 0), "Sunday",
+                     "A STATION", "Mechanical", 10, 20, "E", 1111])
+        notes = workbook.create_sheet("Notes")
+        notes.append(["Some heading"])
+        notes.append(["explanatory text"])
+        handle = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+        workbook.save(handle.name)
+
+        header, rows = read_table(Path(handle.name))
+        self.assertEqual(header, LEGACY_HEADER)
+        self.assertEqual(len(rows), 1)
 
     def test_a_bare_decimal_is_not_mistaken_for_a_clock_reading(self):
         """0.09375 is a fraction of a day, not nine minutes past midnight."""

@@ -60,8 +60,10 @@ COLUMN_ALIASES = {
     "day": ["day"],
     "location": ["location", "station"],
     "cause_raw": ["incident", "code"],
-    "min_delay": ["mindelay"],
-    "min_gap": ["mingap"],
+    # 2020 (and possibly other years) drops the "Min " prefix entirely and
+    # publishes these as "Delay" and "Gap". Same measure, different label.
+    "min_delay": ["mindelay", "delay"],
+    "min_gap": ["mingap", "gap"],
     "direction": ["direction", "bound"],
     "vehicle": ["vehicle"],
 }

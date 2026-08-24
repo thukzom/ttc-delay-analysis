@@ -18,6 +18,7 @@ SELECT
     MIN(delay_date)                                         AS first_date,
     MAX(delay_date)                                         AS last_date,
     COUNT(DISTINCT delay_date)                              AS distinct_days,
+    COUNT(DISTINCT year_month)                              AS months_covered,
     COUNT(DISTINCT route_number)                            AS distinct_routes,
 
     SUM(dq_missing_hour)                                    AS missing_hour,
