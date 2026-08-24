@@ -1,0 +1,83 @@
+# Builds the site from the real City of Toronto data and publishes it.
+#
+# The whole pipeline runs on every push and on the 5th of each month, because
+# that is roughly when the City refreshes this dataset. If the download fails
+# or any quality gate fails, the job fails and nothing is deployed - I would
+# rather the site go stale than quietly publish numbers I have not checked.
+
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 8 5 * *"
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Earliest year of data to download"
+        required: false
+        default: "2018"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -t . -v
+
+      - name: Download the data
+        run: python -m src.fetch --since ${{ github.event.inputs.since || '2018' }}
+
+      - name: Build the warehouse
+        run: python -m src.load
+
+      - name: Data quality gates
+        run: python -m src.quality_checks
+
+      - name: Build the site
+        run: python -m src.build_site
+
+      - name: Confirm the build used real data
+        # A belt-and-braces check. The site is only ever published from a build
+        # that actually loaded the published files.
+        run: |
+          MODE=$(python -c "import sqlite3;print(sqlite3.connect('data/ttc.db').execute('SELECT data_mode FROM mart_dq_summary').fetchone()[0])")
+          echo "data_mode = $MODE"
+          if [ "$MODE" != "real" ]; then
+            echo "::error::Build did not use real data; refusing to publish."
+            exit 1
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
