@@ -310,13 +310,15 @@ class QualityChecker:
             f"gap {avg_gap} min vs delay {avg_delay} min",
         )
 
-        estimated_pct = self.scalar(
-            "SELECT pct_headway_estimated FROM mart_dq_summary"
+        impact_pct = self.scalar(
+            "SELECT pct_impact_on_derived_headway FROM mart_dq_summary"
         )
+        band_pct = self.scalar("SELECT pct_headway_estimated FROM mart_dq_summary")
         self.check(
-            "most headways are derived, not assumed", "plausibility",
-            estimated_pct >= 60,
-            f"{estimated_pct}% of route-bands have a derived headway",
+            "the answer rests on derived headways", "plausibility",
+            impact_pct >= 70,
+            f"{impact_pct}% of rider impact uses a derived headway "
+            f"({band_pct}% of route-bands, but thin bands carry little impact)",
         )
 
         share = self.scalar("SELECT top10_route_share_pct FROM mart_exec_summary")

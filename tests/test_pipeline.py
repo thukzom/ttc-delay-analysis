@@ -503,7 +503,7 @@ class TestWarehouse(unittest.TestCase):
         """
         combos = self.scalar(
             "SELECT COUNT(*) FROM (SELECT DISTINCT route_number, time_band "
-            "FROM stg_incidents WHERE is_analysable = 1)"
+            "FROM stg_incidents)"
         )
         headways = self.scalar("SELECT COUNT(*) FROM int_route_headway")
         self.assertEqual(combos, headways)

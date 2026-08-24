@@ -669,18 +669,32 @@ themselves.</p>
         "summaries, so nothing here is typed in by hand and nothing can drift "
         "out of step with the data. The whole thing rebuilds itself monthly, "
         "which is roughly how often the City refreshes the dataset.</p>")
-    body.append(finding(
-        "The files change shape partway through, which was the first real problem",
-        "Everything up to 2024 uses one set of column names &mdash; "
-        "<em>Report Date</em>, <em>Route</em>, <em>Location</em>, "
-        "<em>Incident</em>. From 2025 the same fields are called <em>Date</em>, "
-        "<em>Line</em>, <em>Station</em> and <em>Code</em>, and the cause field "
-        "changes from free text to a lookup code. Any analysis spanning both has "
-        "to reconcile them, and doing it sloppily is the easiest way to end up "
-        "confidently wrong. I match every column against an explicit list of "
-        "names I have actually seen, and the loader stops with an error rather "
-        "than guessing if it meets something new.",
-    ))
+    if int(dq.schema_generations or 1) > 1:
+        body.append(finding(
+            "The files change shape partway through, which was the first real problem",
+            "Everything up to 2024 uses one set of column names &mdash; "
+            "<em>Report Date</em>, <em>Route</em>, <em>Location</em>, "
+            "<em>Incident</em>. From 2025 the same fields are called "
+            "<em>Date</em>, <em>Line</em>, <em>Station</em> and <em>Code</em>, "
+            "and the cause field changes from free text to a lookup code. This "
+            "build reconciles both. Doing that sloppily is the easiest way to "
+            "end up confidently wrong, so every column is matched against an "
+            "explicit list of names I have actually seen, and the loader stops "
+            "with an error rather than guessing if it meets a new one.",
+        ))
+    else:
+        body.append(finding(
+            "The column names are not stable, so nothing is matched by position",
+            "The City renamed most of these fields in 2025 &mdash; what used to "
+            "be <em>Report Date</em>, <em>Route</em> and <em>Location</em> is "
+            "now <em>Date</em>, <em>Line</em> and <em>Station</em>, and the "
+            "cause field changed from free text to a lookup code. Individual "
+            "years also vary: 2020 publishes <em>Delay</em> and <em>Gap</em> "
+            "without the <em>Min</em> prefix. Every column is therefore matched "
+            "against an explicit list of names I have seen in the files, and "
+            "the loader stops with an error rather than guessing if it meets "
+            "something new.",
+        ))
     body.append("</div>")
 
     # -- the model ------------------------------------------------------------
@@ -724,7 +738,8 @@ themselves.</p>
           "Overstates the wait on infrequent routes, where people time their "
           "arrival to the timetable. The overnight figures are most exposed."],
          ["Headway derived from the gap minus the delay",
-          f'<span class="pill ok">{int(dq.pct_headway_estimated)}% derived</span>',
+          f'<span class="pill ok">{dq.pct_impact_on_derived_headway:.0f}% of '
+          'impact derived</span>',
           "Tested to within half a minute against known values. Routes where I "
           "had to fall back to an assumption are flagged in the scorecard."],
          [f"Gaps capped at {GAP_CAP_MINUTES} minutes before measuring impact",
@@ -762,8 +777,9 @@ themselves.</p>
          "internally consistent"),
         ("Causes unmapped", f"{dq.pct_cause_unmapped:.1f}%",
          "land in Unclassified"),
-        ("Headways derived", f"{dq.pct_headway_estimated:.0f}%",
-         "rather than assumed"),
+        ("Impact on derived headways",
+         f"{dq.pct_impact_on_derived_headway:.0f}%",
+         "rather than an assumed default"),
         ("Gaps capped", f"{dq.pct_gaps_winsorised:.2f}%",
          f"at {GAP_CAP_MINUTES} minutes"),
         ("Implausible rows", f"{dq.pct_implausible:.2f}%",

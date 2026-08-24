@@ -50,10 +50,25 @@ SELECT
     MIN(min_gap, {{GAP_CAP_MINUTES}})                    AS min_gap_capped,
     CASE WHEN min_gap > {{GAP_CAP_MINUTES}} THEN 1 ELSE 0 END AS is_gap_capped,
 
-    -- The difference between the two published measures is the quantity this
-    -- project is built on. Min Delay is how late the VEHICLE was; Min Gap is
-    -- how long the hole in service was. A rider at a stop experiences the gap.
-    CASE WHEN min_gap > 0 AND min_delay > 0 AND min_gap >= min_delay
+    -- Min Delay is how late the VEHICLE was; Min Gap is how long the hole in
+    -- service was. A rider at a stop experiences the second one.
+    --
+    -- But the two are not independent measurements. In 78% of records Min Gap
+    -- is EXACTLY twice Min Delay, which is a recording convention rather than
+    -- an observation - on those rows Min Gap - Min Delay just returns the
+    -- delay again, and carries no information about how often the route runs.
+    -- Reading a schedule out of them would produce a confident number that
+    -- means nothing.
+    --
+    -- The headway estimate is therefore built ONLY from records where the two
+    -- figures were not locked together, which is where the gap looks like it
+    -- was actually recorded. Those rows are flagged here.
+    CASE WHEN min_gap > 0 AND min_delay > 0 AND min_gap = 2 * min_delay
+         THEN 1 ELSE 0 END                               AS is_gap_derived_2x,
+
+    CASE WHEN min_gap > 0 AND min_delay > 0
+          AND min_gap >= min_delay
+          AND min_gap <> 2 * min_delay
          THEN min_gap - min_delay END                    AS implied_headway_min,
 
     schema_generation,

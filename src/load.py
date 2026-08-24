@@ -311,6 +311,11 @@ def split_route(value: str) -> tuple[str, str]:
 # --- cause harmonisation -----------------------------------------------------
 
 
+# A published cause code is 2-6 letters, no spaces: MFUS, EFHVA, TFCNO.
+# Free-text values from the older files never look like this.
+_CODE_SHAPED = re.compile(r"^[A-Z]{2,6}$")
+
+
 def load_code_lookup() -> dict[str, str]:
     """Prefer the freshly-fetched lookup; fall back to the committed reference."""
     source = CODES_CSV if CODES_CSV.exists() else None
@@ -346,8 +351,25 @@ def categorise(cause_raw: str, code_lookup: dict[str, str]) -> tuple[str, str, s
             category = CODE_PREFIX_CATEGORY.get(upper[:2], "other")
         return upper, description, category
 
-    category = INCIDENT_TEXT_CATEGORY.get(norm_key(text), "other")
-    return "", text.upper(), category
+    # Known free-text values win over the code heuristic below. "Vision" is a
+    # legacy incident value AND six uppercase letters, so testing the shape
+    # first quietly reclassified it as an unknown code.
+    known = INCIDENT_TEXT_CATEGORY.get(norm_key(text))
+    if known is not None:
+        return "", text.upper(), known
+
+    # The City uses more codes than it publishes in the lookup - EFAS, EFCEL,
+    # EFSD and others appear in the data with no description anywhere. They
+    # still follow the documented prefix convention, so a code-shaped value
+    # that is not in the lookup is categorised by its prefix rather than
+    # dumped into "other".
+    if _CODE_SHAPED.match(upper):
+        category = CODE_CATEGORY_OVERRIDES.get(upper)
+        if category is None:
+            category = CODE_PREFIX_CATEGORY.get(upper[:2], "other")
+        return upper, upper, category
+
+    return "", text.upper(), "other"
 
 
 # --- harmonise ---------------------------------------------------------------

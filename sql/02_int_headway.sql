@@ -42,7 +42,6 @@ WITH
 route_bands AS (
     SELECT DISTINCT route_number, time_band
     FROM stg_incidents
-    WHERE is_analysable = 1
 ),
 
 observations AS (

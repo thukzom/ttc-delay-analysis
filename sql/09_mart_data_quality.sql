@@ -26,6 +26,7 @@ SELECT
     SUM(dq_cause_unmapped)                                  AS cause_unmapped,
     SUM(dq_gap_below_delay)                                 AS gap_below_delay,
     SUM(dq_gap_sentinel)                                    AS gap_sentinel_values,
+    SUM(is_gap_derived_2x)                                  AS gap_derived_2x,
     SUM(is_gap_capped)                                      AS gaps_winsorised,
     SUM(is_implausible)                                     AS implausible_rows,
     SUM(CASE WHEN direction = '' THEN 1 ELSE 0 END)         AS missing_direction,
@@ -77,6 +78,13 @@ SELECT
     , 2)                                                        AS pct_service_affecting,
 
     (SELECT SUM(dq_gap_sentinel) FROM stg_incidents)            AS gap_sentinel_values,
+    ROUND(
+        (SELECT SUM(is_gap_derived_2x) FROM stg_incidents) * 100.0
+        / NULLIF((SELECT COUNT(*) FROM stg_incidents
+                   WHERE min_gap > 0 AND min_delay > 0), 0)
+    , 1)                                                        AS pct_gap_derived_2x,
+    (SELECT COUNT(*) FROM stg_incidents WHERE implied_headway_min IS NOT NULL)
+                                                                AS headway_observations,
     (SELECT SUM(is_gap_capped) FROM stg_incidents)              AS gaps_winsorised,
     ROUND(
         (SELECT SUM(is_gap_capped) FROM stg_incidents) * 100.0
@@ -102,8 +110,17 @@ SELECT
                   WHERE is_analysable = 1), 0)
     , 3)                                                        AS pct_impact_worst_incident,
 
-    -- How much of the wait-time model rests on an estimated headway rather than
-    -- an assumed default. The lower this is, the weaker the impact figures.
+    -- The share of RIDER IMPACT resting on a derived headway rather than an
+    -- assumed default. This is the meaningful version: counting route-bands
+    -- weights an empty overnight band equally with a peak-hour trunk route.
+    ROUND(
+        (SELECT SUM(rider_impact_index) FROM fct_delay_incident
+          WHERE is_analysable = 1 AND headway_source <> 'default_assumed') * 100.0
+        / NULLIF((SELECT SUM(rider_impact_index) FROM fct_delay_incident
+                   WHERE is_analysable = 1), 0)
+    , 1)                                                        AS pct_impact_on_derived_headway,
+
+    -- The same thing counted by route-band, kept for context only.
     ROUND(
         (SELECT COUNT(*) FROM int_route_headway
           WHERE headway_source <> 'default_assumed') * 100.0
